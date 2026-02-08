@@ -1,5 +1,5 @@
 ---
-import '../styles/index.css';
+import '../styles/article.css';
 
 import { getEntry, render } from 'astro:content';
 import { name } from 'spectre:globals';
@@ -13,23 +13,30 @@ const { Content: Resume } = await render(resume!);
 
 <Layout
 	title={`Resume | ${name}`}
-	description="Nathan Ash's resume - Technical Services Manager and Systems Engineer"
+	description="Nathan Ash - Technical Services Manager and Systems Engineer based in Melbourne"
+	pagefindIgnore
 >
-	<div class="layout-grid-full" slot="right">
+	<article slot="right" data-pagefind-body>
 		<Card>
-			<div class="header-container">
-				<Icon type='lucide' name="file-text" width={24} height={24} class='glow-icon' />
-				<h2>Resume</h2>
+			<div class="article-header" id="_top">
+				<div class="header">
+					<div class="header-container">
+						<Icon type='lucide' name="file-text" width={24} height={24} class='glow-icon' />
+						<h1 class="no-mt article-h1">Nathan Ash</h1>
+					</div>
+				</div>
 			</div>
-			<div class="prose">
-				<Resume />
-			</div>
+			<Resume />
+			<hr class="end-of-article" />
+			<a href="/" class="block-link">← Back to homepage</a>
 		</Card>
-	</div>
+	</article>
 </Layout>
-
 <style>
-	.layout-grid-full {
+	article {
+		display: flex;
+		flex-direction: column;
+		gap: 2rem;
 		max-width: 900px;
 		margin: 0 auto;
 	}
