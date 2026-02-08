@@ -1,0 +1,11 @@
+[
+	{ "id": "meta" },
+	{ "id": "homelab" },
+	{ "id": "docker" },
+	{ "id": "self-hosted" },
+	{ "id": "powershell" },
+	{ "id": "automation" },
+	{ "id": "windows" },
+	{ "id": "linux" },
+	{ "id": "networking" }
+]
