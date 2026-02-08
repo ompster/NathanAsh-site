@@ -16,7 +16,7 @@ const { Content: Resume } = await render(resume!);
 	description="Nathan Ash - Technical Services Manager and Systems Engineer based in Melbourne"
 	pagefindIgnore
 >
-	<article slot="right" data-pagefind-body>
+	<article slot="left" class="resume-full-width" data-pagefind-body>
 		<Card>
 			<div class="article-header" id="_top">
 				<div class="header">
@@ -32,12 +32,24 @@ const { Content: Resume } = await render(resume!);
 		</Card>
 	</article>
 </Layout>
+<style is:global>
+	/* Make resume page full width */
+	.resume-full-width {
+		grid-column: 1 / -1 !important;
+		max-width: 900px;
+		margin: 0 auto;
+		width: 100%;
+	}
+	
+	/* Hide the empty right slot space */
+	.layout-grid:has(.resume-full-width) {
+		grid-template-columns: 1fr !important;
+	}
+</style>
 <style>
 	article {
 		display: flex;
 		flex-direction: column;
 		gap: 2rem;
-		max-width: 900px;
-		margin: 0 auto;
 	}
 </style>
