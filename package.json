@@ -2,7 +2,6 @@
 	"name": "nathanash-site",
 	"type": "module",
 	"version": "1.0.2",
-	"packageManager": "pnpm@10.27.0",
 	"scripts": {
 		"dev": "astro dev",
 		"build": "astro build",
