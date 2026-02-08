@@ -1,0 +1,36 @@
+---
+import '../styles/index.css';
+
+import { getEntry, render } from 'astro:content';
+import { name } from 'spectre:globals';
+import Card from '../components/Card.astro';
+import Icon from '../components/Icon.astro';
+import Layout from '../layouts/Layout.astro';
+
+const resume = await getEntry('other', 'resume');
+const { Content: Resume } = await render(resume!);
+---
+
+<Layout
+	title={`Resume | ${name}`}
+	description="Nathan Ash's resume - Technical Services Manager and Systems Engineer"
+>
+	<div class="layout-grid-full" slot="right">
+		<Card>
+			<div class="header-container">
+				<Icon type='lucide' name="file-text" width={24} height={24} class='glow-icon' />
+				<h2>Resume</h2>
+			</div>
+			<div class="prose">
+				<Resume />
+			</div>
+		</Card>
+	</div>
+</Layout>
+
+<style>
+	.layout-grid-full {
+		max-width: 900px;
+		margin: 0 auto;
+	}
+</style>
