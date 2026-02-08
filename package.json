@@ -12,6 +12,7 @@
 		"lint:fix": "biome check --write ."
 	},
 	"dependencies": {
+		"@astrojs/cloudflare": "^12.6.12",
 		"@astrojs/mdx": "^4.3.13",
 		"@astrojs/sitemap": "^3.6.0",
 		"@iconify-json/lucide": "^1.2.20",

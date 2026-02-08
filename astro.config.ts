@@ -1,3 +1,4 @@
+import cloudflare from '@astrojs/cloudflare';
 import mdx from '@astrojs/mdx';
 import sitemap from '@astrojs/sitemap';
 import { defineConfig } from 'astro/config';
@@ -9,6 +10,7 @@ import { spectreDark } from './src/ec-theme';
 const config = defineConfig({
 	site: 'https://nathanash.id.au',
 	output: 'static',
+	adapter: cloudflare(),
 	integrations: [
 		expressiveCode({
 			themes: [spectreDark],
