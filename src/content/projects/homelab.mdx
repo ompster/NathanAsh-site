@@ -1,6 +1,6 @@
 ---
 title: "Homelab"
-description: "Self-hosted infrastructure running on Unraid with Docker containers, ad-blocking DNS, and Cloudflare tunnels."
+description: "Self-hosted infrastructure on Unraid with 15TB storage, Docker containers, network-wide ad-blocking, and Cloudflare tunnels."
 date: 2024-01-01
 image: "../assets/placeholder.png"
 info:
@@ -12,14 +12,52 @@ info:
     icon:
       type: "lucide"
       name: "container"
+  - text: "Ubiquiti"
+    icon:
+      type: "lucide"
+      name: "wifi"
 ---
 
-My homelab setup running on an Unraid server, featuring:
+My homelab runs on a **192.168.1.0/24** network with Ubiquiti gear and an Unraid NAS at the core.
 
-- **Plex** — Media server with full *arr stack (Radarr, Sonarr, Jackett)
-- **AdGuard Home + Unbound** — Network-wide ad-blocking and DNS
-- **Home Assistant** — Smart home automation
-- **Gitea** — Self-hosted Git server
-- **Cloudflare Tunnels** — Secure external access to services
+## Hardware
 
-More details coming soon.
+**Unraid Server (MSI)** — The heart of the operation
+- 4x 3.7TB drives in array (~15TB total, ~12TB used)
+- 477GB NVMe cache drive
+- Running 15+ Docker containers
+
+**Networking**
+- Ubiquiti EdgeRouter as gateway
+- Ubiquiti AP for WiFi
+- UniFi Controller managing DHCP
+
+## Services
+
+**Media Stack**
+- **Plex** — Media server
+- **Radarr / Sonarr** — Movie and TV automation
+- **Jackett** — Indexer aggregation
+- **qBittorrent / NZBGet** — Downloads
+- **Ombi** — Request management
+
+**Infrastructure**
+- **AdGuard Home + Unbound + Redis** — Network-wide DNS and ad-blocking (192.168.1.53)
+- **UniFi Controller** — Network management (192.168.1.50)
+- **WireGuard-Easy** — VPN access
+- **Cloudflare Tunnel** — Secure external access without port forwarding
+
+**Self-Hosted Apps**
+- **Gitea** — Git server (repo.ashnet.online)
+- **Linkding** — Bookmark manager (links.ashnet.online)
+- **BabyBuddy** — Baby tracking for the twins (baby.ashnet.online)
+- **IT-Tools** — Developer utilities (tools.ashnet.online)
+
+**Smart Home**
+- **Home Assistant** — Running on a Raspberry Pi
+- Various Espressif/Tuya devices, Google Home speakers, smart TVs
+- Samsung Family Hub (smart fridge)
+
+## External Access
+
+Everything publicly accessible goes through **Cloudflare Tunnel** on the **ashnet.online** domain — no ports exposed to the internet.
