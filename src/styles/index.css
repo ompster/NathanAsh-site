@@ -111,6 +111,14 @@
 	opacity: 0.7;
 }
 
+.tagline {
+	color: #c7c7c7;
+	font-size: 0.85rem;
+	font-style: italic;
+	margin-top: -0.5rem;
+	margin-bottom: 0.5rem;
+}
+
 .pfp-container :global(.glow-image) {
 	filter: drop-shadow(0 0 12px rgba(140, 92, 245, 0.6)) drop-shadow(0 0 24px rgba(140, 92, 245, 0.3));
 }
