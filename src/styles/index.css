@@ -94,30 +94,23 @@
 	align-items: center;
 }
 
-/* Terminal profile picture with blinking cursor */
-.terminal-pfp {
+/* Profile picture with purple glow */
+.pfp-container {
 	position: relative;
 	display: inline-block;
+	border-radius: 8px;
+	overflow: visible;
 }
 
-.terminal-pfp .cursor {
-	position: absolute;
-	top: 50%;
-	left: 63%;
-	transform: translateY(-50%);
-	width: 3px;
-	height: 20px;
-	background-color: #e8b4f8;
-	box-shadow: 0 0 8px #c77dff, 0 0 12px #c77dff;
-	animation: blink 1s infinite;
-	z-index: 10;
+.pfp-container :global(.glow-image img) {
+	border-radius: 8px;
 }
 
-@keyframes blink {
-	0%, 50% {
-		opacity: 1;
-	}
-	51%, 100% {
-		opacity: 0;
-	}
+.pfp-container :global(.glow-image .glow) {
+	filter: blur(12px) brightness(1.2) saturate(2);
+	opacity: 0.7;
+}
+
+.pfp-container :global(.glow-image) {
+	filter: drop-shadow(0 0 12px rgba(140, 92, 245, 0.6)) drop-shadow(0 0 24px rgba(140, 92, 245, 0.3));
 }

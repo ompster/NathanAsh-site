@@ -28,9 +28,8 @@ const { Content: About } = await render(about!);
 >
 	<div class="layout-grid-left" slot="left">
 		<Card class="flex-col-card">
-			<div class="terminal-pfp">
-				<ImageGlow quality={100} width={120} height={120} src={ProfilePicture} alt="Nathan Ash terminal avatar" loading='eager' />
-				<span class="cursor"></span>
+			<div class="pfp-container">
+				<ImageGlow quality={100} width={120} height={120} src={ProfilePicture} alt="Nathan Ash pixel art avatar" loading='eager' />
 			</div>
 			<h2>{name}</h2>
 			<ul class="overview-list">
