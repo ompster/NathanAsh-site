@@ -115,8 +115,10 @@
 	color: #c7c7c7;
 	font-size: 0.85rem;
 	font-style: italic;
-	margin-top: -0.5rem;
-	margin-bottom: 1.5rem;
+	margin-top: 0;
+	margin-bottom: 0;
+	padding-bottom: 1rem;
+	border-bottom: 1px solid #353535;
 }
 
 .pfp-container :global(.glow-image) {
