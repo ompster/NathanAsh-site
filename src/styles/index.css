@@ -93,3 +93,31 @@
 	gap: 0.75rem;
 	align-items: center;
 }
+
+/* Terminal profile picture with blinking cursor */
+.terminal-pfp {
+	position: relative;
+	display: inline-block;
+}
+
+.terminal-pfp .cursor {
+	position: absolute;
+	top: 50%;
+	left: 63%;
+	transform: translateY(-50%);
+	width: 3px;
+	height: 20px;
+	background-color: #e8b4f8;
+	box-shadow: 0 0 8px #c77dff, 0 0 12px #c77dff;
+	animation: blink 1s infinite;
+	z-index: 10;
+}
+
+@keyframes blink {
+	0%, 50% {
+		opacity: 1;
+	}
+	51%, 100% {
+		opacity: 0;
+	}
+}
