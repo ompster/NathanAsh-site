@@ -106,7 +106,7 @@ const { Content: About } = await render(about!);
 				<h2>Work Experience</h2>
 			</div>
 			<div class="work-experience-container">
-				{workExperience.reverse().map((entry) => (
+				{workExperience.map((entry) => (
 					<div class="work-experience-entry">
 						<span class="work-experience-duration">{entry.data.duration}</span>
 						<h3 class="work-experience-company">{entry.data.company}</h3>
