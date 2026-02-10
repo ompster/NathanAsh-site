@@ -23,13 +23,19 @@ const { Content: About } = await render(about!);
 // Fetch recently starred repos from GitHub
 let starredRepos: any[] = [];
 try {
-	const res = await fetch('https://api.github.com/users/ompster/starred?per_page=10&sort=created&direction=desc', {
+	const res = await fetch('https://api.github.com/users/ompster/starred?per_page=100&sort=created&direction=desc', {
 		headers: { 'User-Agent': 'nathanash-site' }
 	});
 	if (res.ok) starredRepos = await res.json();
 } catch (e) {
 	// Fail silently — just won't show the section
 }
+
+// Pick one random starred repo for the sidebar
+const sidebarRepo = starredRepos.length > 0 ? starredRepos[Math.floor(Math.random() * starredRepos.length)] : null;
+
+// 10 most recent for the main content
+const recentStarred = starredRepos.slice(0, 10);
 ---
 
 <Layout
@@ -66,28 +72,24 @@ try {
 				))}
 			</ul>
 		</Card>
-		{starredRepos.length > 0 && (
+		{sidebarRepo && (
 		<Card>
 			<div class="header-container">
 				<Icon type='lucide' name="star" width={24} height={24} class='glow-icon' />
-				<h2 class="no-mt">Recently Starred</h2>
+				<h3 class="no-mt">Random Star ✨</h3>
 			</div>
-			<div class="starred-repos">
-				{starredRepos.map((repo: any) => (
-					<a href={repo.html_url} target="_blank" rel="noopener noreferrer" class="starred-repo">
-						<div class="starred-repo-header">
-							<span class="starred-repo-name">{repo.full_name}</span>
-							<span class="starred-repo-stars">⭐ {repo.stargazers_count.toLocaleString()}</span>
-						</div>
-						{repo.description && (
-							<span class="starred-repo-desc">{repo.description.length > 100 ? repo.description.substring(0, 100) + '…' : repo.description}</span>
-						)}
-						{repo.language && (
-							<span class="starred-repo-lang">{repo.language}</span>
-						)}
-					</a>
-				))}
-			</div>
+			<a href={sidebarRepo.html_url} target="_blank" rel="noopener noreferrer" class="starred-repo">
+				<div class="starred-repo-header">
+					<span class="starred-repo-name">{sidebarRepo.full_name}</span>
+					<span class="starred-repo-stars">⭐ {sidebarRepo.stargazers_count.toLocaleString()}</span>
+				</div>
+				{sidebarRepo.description && (
+					<span class="starred-repo-desc">{sidebarRepo.description.length > 120 ? sidebarRepo.description.substring(0, 120) + '…' : sidebarRepo.description}</span>
+				)}
+				{sidebarRepo.language && (
+					<span class="starred-repo-lang">{sidebarRepo.language}</span>
+				)}
+			</a>
 		</Card>
 		)}
 	</div>
@@ -118,6 +120,30 @@ try {
 				))}
 			</div>
 		</Card>
+		{recentStarred.length > 0 && (
+		<Card>
+			<div class="header-container">
+				<Icon type='lucide' name="star" width={24} height={24} class='glow-icon' />
+				<h2>Recently Starred</h2>
+			</div>
+			<div class="starred-repos">
+				{recentStarred.map((repo: any) => (
+					<a href={repo.html_url} target="_blank" rel="noopener noreferrer" class="starred-repo">
+						<div class="starred-repo-header">
+							<span class="starred-repo-name">{repo.full_name}</span>
+							<span class="starred-repo-stars">⭐ {repo.stargazers_count.toLocaleString()}</span>
+						</div>
+						{repo.description && (
+							<span class="starred-repo-desc">{repo.description.length > 100 ? repo.description.substring(0, 100) + '…' : repo.description}</span>
+						)}
+						{repo.language && (
+							<span class="starred-repo-lang">{repo.language}</span>
+						)}
+					</a>
+				))}
+			</div>
+		</Card>
+		)}
 		<Card>
 			<div class="header-container">
 				<Icon type='lucide' name="folder-git" width={24} height={24} class='glow-icon' />
