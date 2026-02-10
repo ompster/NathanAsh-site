@@ -1,0 +1,105 @@
+---
+title: "How This Site Works"
+description: "A look under the hood at my personal site — built with Astro, the Spectre theme, and deployed on Cloudflare Pages."
+createdAt: 2026-02-09
+image: "../assets/blog-building-this-site.png"
+tags: ["astro", "cloudflare", "webdev", "meta"]
+---
+
+I figured the site itself deserves a post. Here's how it all fits together.
+
+## The stack
+
+- **Framework:** [Astro](https://astro.build) — static site generator that ships zero JavaScript by default
+- **Theme:** [Spectre](https://github.com/louisescher/spectre) — a terminal-inspired dark theme with that nice glow effect
+- **Content:** MDX files for posts, projects, resume, and about page
+- **Search:** [Pagefind](https://pagefind.app) — runs at build time, generates a static search index
+- **Code blocks:** [Expressive Code](https://expressive-code.com) with a custom dark theme
+- **Hosting:** [Cloudflare Pages](https://pages.cloudflare.com) — free, fast, auto-deploys from GitHub
+- **Domain:** `me.ashnet.online` via Cloudflare DNS (managed with [Terraform](/blog/cloudflare-dns-terraform), naturally)
+
+## Why Astro?
+
+I wanted something that spits out static HTML with no client-side framework bloat. Astro does exactly that. Content lives in MDX files with frontmatter, the build step handles all the image optimisation and sitemap generation, and what you get is a fast, lightweight site.
+
+No React runtime. No hydration. Just HTML and CSS with some sharp image processing courtesy of [Sharp](https://sharp.pixelplumbing.com).
+
+## Content structure
+
+Everything lives under `src/content/`:
+
+```
+src/content/
+├── posts/          # Blog posts (MDX)
+├── projects/       # Project writeups (MDX)
+├── other/          # About page, resume
+├── assets/         # Images for posts
+├── info.json       # Quick info sidebar items
+├── socials.json    # Social links
+├── work.json       # Work experience entries
+└── tags.json       # Tag definitions
+```
+
+Posts and projects use Astro's content collections — type-safe frontmatter, automatic slug generation, the works. Adding a new blog post is just creating an MDX file with the right frontmatter and pushing to `master`.
+
+## The homepage
+
+The homepage pulls everything together in a two-column layout:
+
+**Left sidebar:**
+- Profile picture with a glow effect
+- Quick info (role, location)
+- Social links
+- A random GitHub starred repo (fetched at build time from the GitHub API)
+
+**Main content:**
+- About section
+- Latest blog posts
+- Recently starred GitHub repos (top 10)
+- Latest projects
+- Work experience timeline
+
+The starred repos section hits the GitHub API at build time — no API keys needed for public data. Every deploy picks up whatever I've starred recently, so it stays current without me touching it.
+
+## Deployment pipeline
+
+The deploy process is dead simple:
+
+1. Push to `master` on GitHub
+2. Cloudflare Pages detects the push
+3. Runs `astro build` followed by `pagefind --site dist`
+4. Deploys to the edge
+
+No CI/CD config to maintain. No build servers. Cloudflare handles it all. Typical build-to-live time is under two minutes.
+
+The site sits behind Cloudflare's CDN, so it's cached at edge nodes globally. For a static site with no server-side logic, this is basically free hosting with great performance.
+
+## Image handling
+
+Astro's built-in image optimisation is genuinely good. Drop a PNG into the assets folder, reference it in frontmatter, and the build pipeline:
+
+- Converts to WebP
+- Generates responsive sizes
+- Adds proper `srcset` attributes
+- Handles lazy loading
+
+The Spectre theme adds a glow effect on hero images that gives everything that nice terminal-aesthetic vibe.
+
+One gotcha: blog images go in `src/content/assets/`, not `src/assets/`. The frontmatter path `../assets/image.png` resolves relative to the post file in `src/content/posts/`. I've made this mistake more than once.
+
+## Search
+
+Pagefind runs as a post-build step, indexing the entire `dist/` output. It generates a static search index that loads on demand — no server required. Hit `Ctrl+K` on any page to try it.
+
+For a static site, this is the best search solution I've found. Zero ongoing cost, works offline, and the index is tiny.
+
+## What's next
+
+A few things I want to add:
+
+- **RSS feed** — so people can subscribe
+- **Dark/light toggle** — though honestly, dark mode is the only mode
+- **More blog posts** — documenting homelab projects as I go
+- **Resume PDF generation** — currently manual, want to automate it from the MDX source
+
+The source is public on [GitHub](https://github.com/ompster/NathanAsh-site) if you want to poke around.
