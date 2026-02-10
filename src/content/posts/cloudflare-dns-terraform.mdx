@@ -1,0 +1,148 @@
+---
+title: "Managing My Cloudflare DNS with Terraform"
+description: "How I moved my homelab's DNS from click-ops to Infrastructure as Code using Terraform and the Cloudflare provider."
+createdAt: 2026-02-10
+image: "../assets/placeholder.png"
+tags: ["terraform", "cloudflare", "homelab", "infrastructure-as-code"]
+---
+
+I've been managing my homelab's DNS through the Cloudflare dashboard for years. Click here, type there, hope I don't fat-finger a CNAME. Tonight I decided to fix that and manage it all as code with Terraform.
+
+## Why bother?
+
+My domain `ashnet.online` has about a dozen DNS records — a mix of CNAME records pointing through a Cloudflare Tunnel to services on my Unraid server, A records, and a Cloudflare Pages site. Not exactly enterprise-scale, but that's kind of the point.
+
+When you manage DNS by clicking around a dashboard:
+- There's no history of what changed and when
+- There's no review process before changes go live
+- There's no easy way to replicate the setup
+- You forget what half the records are for
+
+Infrastructure as Code solves all of that. Every record is defined in a file, version controlled in Git, and applied through a predictable workflow.
+
+## The setup
+
+The Terraform config is surprisingly simple. Here's the structure:
+
+```
+terraform-cloudflare/
+├── main.tf                    # All the config
+├── terraform.tfvars           # Secrets (gitignored!)
+├── terraform.tfvars.example   # Template for secrets
+├── .gitignore                 # Keeps secrets out of git
+└── README.md
+```
+
+### Provider and variables
+
+```hcl
+terraform {
+  required_providers {
+    cloudflare = {
+      source  = "cloudflare/cloudflare"
+      version = "~> 5.0"
+    }
+  }
+}
+
+provider "cloudflare" {
+  api_token = var.cloudflare_api_token
+}
+```
+
+You need three things from Cloudflare: an API token (scoped to "Edit zone DNS"), your Zone ID, and your Tunnel ID. These go in `terraform.tfvars` which is gitignored — secrets never touch the repo.
+
+### Defining DNS records
+
+The real power is in how clean the record definitions are. All my tunnel-routed subdomains are defined in a single map:
+
+```hcl
+locals {
+  tunnel_cname = "${var.tunnel_id}.cfargotunnel.com"
+
+  tunnel_subdomains = {
+    "repo"     = { comment = "Gitea - Git hosting" }
+    "links"    = { comment = "Linkding - Bookmarks" }
+    "tools"    = { comment = "IT-Tools - Dev utilities" }
+    "twins"    = { comment = "BabyBuddy - Baby tracking" }
+    # ... more subdomains
+  }
+}
+
+resource "cloudflare_dns_record" "tunnel" {
+  for_each = local.tunnel_subdomains
+
+  zone_id = var.zone_id
+  name    = each.key
+  type    = "CNAME"
+  content = local.tunnel_cname
+  proxied = true
+  ttl     = 1
+  comment = each.value.comment
+}
+```
+
+Adding a new subdomain is now a one-liner. Add the entry, run `terraform apply`, done. No dashboard required.
+
+### Records that don't fit the pattern
+
+Not everything is a tunnel CNAME. My personal site (`me.ashnet.online`) points to Cloudflare Pages, and a couple of records are A records pointing directly to my WAN IP. These get their own resource blocks:
+
+```hcl
+resource "cloudflare_dns_record" "pages_site" {
+  zone_id = var.zone_id
+  name    = "me"
+  type    = "CNAME"
+  content = "nathanash-site.pages.dev"
+  proxied = true
+  ttl     = 1
+  comment = "Personal site - Cloudflare Pages"
+}
+```
+
+## Importing existing records
+
+The trickiest part was the initial import. Since my DNS records already existed in Cloudflare, I couldn't just `terraform apply` — that would try to create duplicates. Instead, I had to import each record into Terraform's state:
+
+```bash
+# Get record IDs from the Cloudflare API
+curl -H "Authorization: Bearer $TOKEN" \
+  "https://api.cloudflare.com/client/v4/zones/$ZONE_ID/dns_records"
+
+# Import each record
+terraform import 'cloudflare_dns_record.tunnel["repo"]' $ZONE_ID/$RECORD_ID
+terraform import 'cloudflare_dns_record.tunnel["links"]' $ZONE_ID/$RECORD_ID
+# ... repeat for each record
+```
+
+After importing all 11 records, `terraform plan` showed only comment updates — no destructive changes. Exactly what you want to see.
+
+## The workflow now
+
+```bash
+# 1. Edit main.tf — add/change/remove records
+# 2. Preview changes
+terraform plan
+
+# 3. Review the output — make sure nothing unexpected is happening
+# 4. Apply
+terraform apply
+```
+
+That's it. Version controlled, reviewable, repeatable. If I ever need to rebuild my DNS from scratch (new domain, new account, whatever), the entire config is right there in Git.
+
+## What's next
+
+This was a small project, but it's a solid foundation for more IaC work:
+
+- **Remote state backend** — Move the state file to cloud storage so it's backed up and shareable
+- **Azure resources** — Apply the same approach to Azure infrastructure with the AzureRM provider
+- **CI/CD pipeline** — Auto-apply on merge to main via GitHub Actions
+
+The beauty of Terraform is that the workflow is the same regardless of what you're managing. Learn it once with DNS records, apply it to everything else.
+
+## Key takeaway
+
+You don't need a massive cloud environment to practice Infrastructure as Code. A homelab domain with a handful of DNS records is a perfect starting point. The concepts — state management, imports, plan/apply workflow, secrets handling — are exactly the same whether you're managing 10 records or 10,000 resources.
+
+If you've got a Cloudflare domain and you're still managing it through the dashboard, give this a try. It takes about 30 minutes to set up, and you'll never go back to click-ops.
