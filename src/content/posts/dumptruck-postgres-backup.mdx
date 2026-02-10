@@ -74,6 +74,8 @@ python verify_backups.py
 
 The GUI was important. I'm not always the one running restores. The tool needs to be usable by someone who's never seen a command line.
 
+![DumpTruck GUI](../assets/dumptruck-gui.png)
+
 ## The version trap
 
 This one's worth calling out. If your `pg_dump` version is **older** than your PostgreSQL server, the dump will succeed but may silently skip features or produce an incompatible format. No error. No warning. Just a backup that doesn't fully restore.
