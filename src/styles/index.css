@@ -128,3 +128,66 @@
 .pfp-container :global(.glow-image) {
 	filter: drop-shadow(0 0 12px rgba(140, 92, 245, 0.6)) drop-shadow(0 0 24px rgba(140, 92, 245, 0.3));
 }
+
+/* Starred repos */
+.starred-repos {
+	display: flex;
+	flex-direction: column;
+	gap: 0.5rem;
+}
+
+.starred-repo {
+	display: flex;
+	flex-direction: column;
+	gap: 0.35rem;
+	padding: 0.65rem 0.75rem;
+	border: 1px solid #353535;
+	color: #ffffff;
+	text-decoration: none;
+	transition: background-color 0.15s ease, border 0.15s ease;
+	border-radius: 4px;
+}
+
+.starred-repo:hover,
+.starred-repo:focus-visible {
+	background-color: rgba(140, 92, 245, 0.125);
+	border: 1px solid var(--primary);
+}
+
+.starred-repo:focus-visible {
+	outline: none;
+}
+
+.starred-repo-header {
+	display: flex;
+	justify-content: space-between;
+	align-items: center;
+	gap: 0.5rem;
+}
+
+.starred-repo-name {
+	font-size: 0.85rem;
+	font-weight: 600;
+	color: var(--primary);
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+	flex: 1;
+}
+
+.starred-repo-stars {
+	font-size: 0.75rem;
+	color: #c7c7c7;
+	white-space: nowrap;
+}
+
+.starred-repo-desc {
+	font-size: 0.78rem;
+	color: #a0a0a0;
+	line-height: 1.4;
+}
+
+.starred-repo-lang {
+	font-size: 0.72rem;
+	color: #888;
+}
