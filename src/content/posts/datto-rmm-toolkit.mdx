@@ -119,10 +119,29 @@ The repo also includes ready-to-use templates:
 
 ## How to Use It
 
+The repo is structured so you can grab exactly what you need:
+
+```
+DattoRMM-Toolkit/
+├── DattoRMM-Toolkit.ps1          # All functions in one file
+├── functions/                     # Individual function files
+│   ├── Write-Log.ps1
+│   ├── Exit-Component.ps1
+│   ├── Set-DattoUDF.ps1
+│   ├── Get-LoggedOnUser.ps1
+│   ├── Invoke-AsLoggedOnUser.ps1
+│   ├── Invoke-UserRegistryAction.ps1
+│   └── ... (16 files total)
+├── templates/
+│   ├── Component-Template.ps1
+│   └── Monitor-Template.ps1
+└── README.md
+```
+
 Two options:
 
-1. **Copy what you need** — grab individual functions and paste them into your component
-2. **Use the full toolkit** — paste `DattoRMM-Toolkit.ps1` at the top of your component
+1. **Pick and choose** — grab individual files from `functions/` for just what you need
+2. **Full toolkit** — paste `DattoRMM-Toolkit.ps1` into your component for everything
 
 Since Datto RMM components are self-contained scripts (no module imports), you'll be pasting code rather than dot-sourcing. The templates show how this works in practice.
 
