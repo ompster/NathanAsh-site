@@ -1,0 +1,135 @@
+---
+title: "Datto RMM Toolkit: Reusable PowerShell Functions for Better Components"
+description: "An open-source collection of PowerShell helper functions for Datto RMM — covering UDF writing, structured logging, exit codes, run-as-user execution, and per-user registry modification."
+createdAt: 2026-02-11
+image: "../assets/blog-datto-rmm-toolkit.png"
+tags: ["powershell", "datto", "rmm", "automation", "open-source"]
+---
+
+If you've written more than a handful of Datto RMM components, you've probably rewritten the same boilerplate a dozen times. Logging. Exit codes. Writing to UDFs. Running something as the logged-in user instead of SYSTEM. Touching the registry for the *current* user — or worse, *all* users.
+
+I got tired of copy-pasting, so I built a toolkit. It's open-source, and you can grab it here: **[DattoRMM-toolkit on GitHub](https://github.com/ompster/DattoRMM-toolkit)**.
+
+## The Problem
+
+Datto RMM components run as SYSTEM. That's great for admin tasks, but it creates friction for anything user-facing:
+
+- **UDFs** require writing to specific registry keys under `HKLM:\SOFTWARE\CentraStage` — easy to forget the path
+- **Logging** is ad-hoc — most people just `Write-Output` and hope for the best
+- **Exit codes** are inconsistent — what does exit code 3 mean? Depends who wrote the component
+- **Running as the user** requires the scheduled task workaround, which is fiddly to get right
+- **User registry changes** require mounting NTUSER.DAT for offline profiles, with proper cleanup
+
+The toolkit solves all of these with clean, tested functions you can drop into any component.
+
+## What's in the Box
+
+### Structured Logging
+
+```powershell
+Write-Log "Starting disk cleanup" -Level INFO
+Write-Log "Low disk space detected" -Level WARN
+Write-Log "Failed to delete temp files" -Level ERROR
+Write-LogSection "Phase 2: Registry Updates"
+```
+
+Logs go to `$env:ProgramData\CentraStage\Logs\` with timestamps and severity levels. They also write to stdout so Datto captures them in the component output.
+
+### Exit Codes with Meaning
+
+Instead of bare `exit 1` scattered everywhere:
+
+```powershell
+Exit-Success "Cleanup completed, freed 4.2GB"
+Exit-Failure "Could not reach update server" -ExitCode 20
+Exit-NotApplicable "Windows Server detected, skipping"
+Exit-RebootRequired "Updates installed, pending reboot"
+```
+
+The toolkit defines a convention: 0 = success, 1 = failure, 2 = not applicable, 3 = timeout, 4 = reboot required, 10 = access denied, 20 = network failure. Consistent codes across all your components means you can actually make sense of the activity feed.
+
+### UDF Writing
+
+```powershell
+# Simple write
+Set-DattoUDF -UDF 5 -Value "BitLocker: Enabled | TPM: 2.0"
+
+# With automatic timestamp
+Set-DattoUDFTimestamp -UDF 10 -Value "Disk: 82% used (45GB free)"
+# Result: "2026-02-11 17:30 | Disk: 82% used (45GB free)"
+
+# Read it back
+$current = Get-DattoUDF -UDF 5
+```
+
+No more remembering registry paths. The timestamp variant is particularly useful — you can see at a glance when a UDF was last updated.
+
+### Run as the Logged-In User
+
+Components run as SYSTEM, but sometimes you need the user's context — think mapped drives, user certificates, or anything in `HKCU`. The toolkit handles the scheduled task dance for you:
+
+```powershell
+$user = Get-LoggedOnUser
+# Returns: Username, Domain, SID, SessionId, ProfilePath
+
+$result = Invoke-AsLoggedOnUser -ScriptBlock {
+    param($AppName)
+    Get-Process $AppName -ErrorAction SilentlyContinue | Select-Object Name, CPU
+} -ArgumentList 'chrome'
+```
+
+It creates a temporary scheduled task in the user's interactive session, captures the output via `Export-Clixml`, and cleans up after itself. Timeout protection included.
+
+### Per-User Registry Modification
+
+This is the one that saves the most time. Need to push a registry setting to the current user? Easy. All users, including ones not currently logged in? That's where it gets interesting:
+
+```powershell
+# Current user only
+Invoke-UserRegistryAction -Target Current -Action {
+    param($HivePath, $UserInfo)
+    Set-ItemProperty -Path "$HivePath\SOFTWARE\MyApp" -Name 'Configured' -Value 1 -Force
+    Write-Log "Configured MyApp for $($UserInfo.Username)"
+}
+
+# ALL user profiles (mounts offline hives automatically)
+Invoke-UserRegistryAction -Target All -Action {
+    param($HivePath, $UserInfo)
+    $path = "$HivePath\SOFTWARE\Microsoft\Edge\Main"
+    if (-not (Test-Path $path)) { New-Item -Path $path -Force | Out-Null }
+    Set-ItemProperty -Path $path -Name 'PreventFirstRunPage' -Value 1 -Type DWord -Force
+}
+```
+
+For logged-in users, it accesses `HKU\<SID>` directly. For offline profiles, it mounts `NTUSER.DAT` via `reg load`, runs your action, forces garbage collection, and unloads cleanly. No more orphaned mounted hives.
+
+## Templates
+
+The repo also includes ready-to-use templates:
+
+**Component Template** (`templates/Component-Template.ps1`) — standard component with logging, error handling, variable placeholders, and proper exit codes.
+
+**Monitor Template** (`templates/Monitor-Template.ps1`) — component monitor with threshold-based alerting and five examples you can uncomment:
+
+1. Disk space check
+2. Service running check
+3. Pending reboot detection
+4. Event log error monitoring
+5. Certificate expiry check
+
+## How to Use It
+
+Two options:
+
+1. **Copy what you need** — grab individual functions and paste them into your component
+2. **Use the full toolkit** — paste `DattoRMM-Toolkit.ps1` at the top of your component
+
+Since Datto RMM components are self-contained scripts (no module imports), you'll be pasting code rather than dot-sourcing. The templates show how this works in practice.
+
+## Get It
+
+The toolkit is MIT licensed and available on GitHub:
+
+👉 **[github.com/ompster/DattoRMM-toolkit](https://github.com/ompster/DattoRMM-toolkit)**
+
+Pull requests welcome. If you've got helper functions you keep rewriting, let's stop doing that.
