@@ -113,7 +113,7 @@ const recentStarred = starredRepos.slice(0, 10);
 					<a href={`/blog/${post.id}`} class="post-container">
 						<div class="post-header">
 							<h3>{post.data.title}</h3>
-							<span class="post-date">{post.data.createdAt.toLocaleDateString()}</span>
+							<span class="post-date">{post.data.createdAt.toLocaleDateString("en-AU")}</span>
 						</div>
 						<span>{post.data.description}</span>
 					</a>
@@ -154,7 +154,7 @@ const recentStarred = starredRepos.slice(0, 10);
 					<a href={`/projects/${project.id}`} class="post-container">
 						<div class="post-header">
 							<h3>{project.data.title}</h3>
-							<span class="post-date">{project.data.date.toLocaleDateString()}</span>
+							<span class="post-date">{project.data.date.toLocaleDateString("en-AU")}</span>
 						</div>
 						<span>{project.data.description}</span>
 					</a>
