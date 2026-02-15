@@ -1,0 +1,165 @@
+---
+title: "Proxmox VMforge: Zero-Touch Windows 11 VMs with Terraform"
+description: "Automating Windows 11 VM creation on Proxmox using Terraform and PowerShell — from ISO boot to unattended install, fully hands-off."
+createdAt: 2026-02-15
+image: "../assets/proxmox-vmforge.png"
+tags: ["proxmox", "terraform", "automation", "windows", "powershell", "homelab"]
+---
+
+When you're testing SOE deployments, answer files, or provisioning packages, you burn through VMs fast. Create one, install Windows, test your thing, nuke it, start again. Doing this manually in the Proxmox UI gets old *real* quick.
+
+So I built **[proxmox-VMforge](https://github.com/ompster/proxmox-VMforge)** — a Terraform + PowerShell combo that spins up Windows 11 VMs on Proxmox with zero manual intervention. One command, fresh VM, Windows installing itself.
+
+> ⚠️ This is a lab/testing tool — not for production use.
+
+## The Problem
+
+Testing Windows deployment workflows means:
+
+1. Create a VM in the Proxmox UI (click, click, click...)
+2. Configure UEFI, TPM, Secure Boot (Win11 requirements)
+3. Mount the ISO
+4. Boot it up
+5. Mash a key at the "Press any key to boot from CD" prompt
+6. Wait for the answer file to do its thing
+7. Test whatever you're testing
+8. Delete everything and do it again
+
+Steps 1-5 are pure tedium. And if you need *multiple* VMs? Forget about it.
+
+## The Solution
+
+```powershell
+.\deploy.ps1
+```
+
+That's it. One command:
+
+- **Terraform** creates the VM with the right specs (UEFI, TPM 2.0, Secure Boot, SATA disk, e1000 NIC)
+- **PowerShell** starts the VM via the Proxmox API
+- **Keypresses** are sent automatically via `sendkey` to catch the boot prompt
+- **Your answer file** on the ISO handles the rest
+
+### Spinning Up Multiple VMs
+
+Need to test across several machines at once?
+
+```powershell
+.\deploy.ps1 -Count 5
+```
+
+VM IDs auto-increment (200-299 range), each gets its own Terraform state file, and they all boot simultaneously.
+
+### Managing VMs
+
+```powershell
+# See what's running
+.\deploy.ps1 -List
+
+# Kill a specific VM
+.\deploy.ps1 -Destroy 203
+
+# Nuclear option — kill them all
+.\deploy.ps1 -DestroyAll
+```
+
+## How It Works
+
+### The Terraform Config
+
+The VM config matches a known-working Proxmox Win11 setup. Getting this right was the fiddly part — Windows 11 is picky about its VM hardware:
+
+```hcl
+resource "proxmox_virtual_environment_vm" "win11" {
+  name      = var.vm_name
+  node_name = "pve"
+  vm_id     = var.vm_id
+
+  machine = "pc-q35-10.0"
+  bios    = "ovmf"
+
+  cpu {
+    cores   = 2
+    sockets = 1
+    type    = "x86-64-v2-AES"
+  }
+
+  memory {
+    dedicated = 8096
+  }
+
+  efi_disk {
+    datastore_id      = "local-zfs"
+    type              = "4m"
+    pre_enrolled_keys = true  # Secure Boot
+  }
+
+  tpm_state {
+    datastore_id = "local-zfs"
+    version      = "v2.0"  # Win11 requirement
+  }
+
+  disk {
+    datastore_id = "local-zfs"
+    interface    = "sata0"  # Not SCSI — avoids driver issues
+    size         = 80
+  }
+
+  network_device {
+    bridge = "vmbr0"
+    model  = "e1000"  # Not VirtIO — works out of the box
+  }
+}
+```
+
+Key learnings:
+
+- **Use SATA, not SCSI** for the disk. VirtIO SCSI requires drivers that aren't on the Windows ISO, and without them you'll get `0x80070057 - 0x40030` during install.
+- **Use e1000, not VirtIO** for the NIC. Same driver issue — you can always switch to VirtIO after installing the guest tools.
+- **Pre-enrolled Secure Boot keys** on the EFI disk. Without this, Win11 may refuse to install.
+- **x86-64-v2-AES** CPU type works reliably. `host` passthrough can cause issues depending on your hardware.
+- **pc-q35-10.0** machine type — match your Proxmox/QEMU version.
+
+### The Boot Prompt Trick
+
+The most annoying part of automating a Windows ISO install is the "Press any key to boot from CD/DVD" prompt. Miss it, and the VM drops into the UEFI shell or boot manager.
+
+The fix: spam the spacebar via the Proxmox API immediately after starting the VM.
+
+```powershell
+for ($i = 0; $i -lt 20; $i++) {
+    curl.exe -k -s -X PUT -d "key=spc" `
+        -b "PVEAuthCookie=$ticket" `
+        -H "CSRFPreventionToken: $csrf" `
+        "$ProxmoxUrl/api2/json/nodes/$Node/qemu/$vmId/sendkey"
+    Start-Sleep -Milliseconds 500
+}
+```
+
+20 presses, 500ms apart = 10 seconds of spacebar mashing. It catches the prompt every time, and once Windows Setup loads, the extra keypresses are harmless.
+
+### Credentials
+
+The deploy script uses environment variables for Proxmox auth — no hardcoded passwords:
+
+```powershell
+$env:PVE_URL = "https://your-proxmox:8006"
+$env:PVE_USER = "root@pam"
+$env:PVE_PASSWORD = "your-password"
+```
+
+If `PVE_PASSWORD` isn't set, it prompts you securely.
+
+## What's Next
+
+This covers the "create and boot" part. The answer file on the ISO handles the actual Windows install. For a complete zero-touch pipeline, you could:
+
+- Add **post-install provisioning** via the QEMU Guest Agent (Terraform can wait for the agent, then run scripts)
+- **Snapshot** after install for instant rollback
+- Integrate with **Packer** to build golden images instead of installing from ISO each time
+
+For now though, this saves me a solid 10 minutes per VM — and when you're iterating on SOE configs, that adds up fast.
+
+---
+
+**Repo:** [github.com/ompster/proxmox-VMforge](https://github.com/ompster/proxmox-VMforge)
