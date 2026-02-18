@@ -1,0 +1,122 @@
+---
+title: "DiskHealthCheck: SMART Monitoring That Actually Tells You What's Wrong"
+description: "A PowerShell script that uses smartmontools to monitor SMART attributes, track degradation over time, and give you a clear OK/Degraded/Failing verdict — standalone or as a Datto RMM component."
+createdAt: 2026-02-18
+image: "../assets/blog-disk-health-check.png"
+tags: ["powershell", "datto", "rmm", "monitoring", "open-source"]
+---
+
+Most disk health checks are binary: the drive is either fine or it's dead. That's not very useful when you're managing hundreds of endpoints and want to catch problems *before* a user loses their data.
+
+I built **DiskHealthCheck** to solve this. It's a PowerShell script that queries raw SMART attributes via `smartctl`, tracks them over time in a CSV log, and compares each run against the previous one. The result is a clear verdict: **OK**, **Degraded**, or **Failing** — with an explanation of exactly *which* attributes triggered the alert.
+
+Grab it here: **[disk-health-check on GitHub](https://github.com/ompster/disk-health-check)**.
+
+## Why Not Just Use CrystalDiskInfo?
+
+CrystalDiskInfo is great for a single machine. But when you're deploying across a fleet:
+
+- You need something that runs silently, unattended
+- You need historical data to spot *trends*, not just point-in-time snapshots
+- You need exit codes that your RMM platform can act on
+- You need it to work on both ATA and NVMe without manual configuration
+
+DiskHealthCheck handles all of this. It auto-detects drive type, auto-installs smartmontools if needed, and writes structured output your RMM can consume.
+
+## How It Works
+
+The script follows a simple flow:
+
+1. **Identify the OS drive** — finds the physical disk backing your C: drive
+2. **Find or install smartctl** — checks common paths, falls back to silent install from SourceForge
+3. **Query SMART data** — uses `smartctl --scan` to detect the right device path and type (ATA, NVMe, SAT), then pulls full JSON attribute data
+4. **Parse attributes** — maps raw values to 14 key SMART attributes that actually matter for predicting failure
+5. **Compare with previous run** — loads the last CSV log entry and calculates deltas
+6. **Assess health** — applies threshold-based analysis *and* delta-based analysis to catch active degradation
+7. **Report** — outputs a summary, writes to Datto UDF if running in RMM context, exits with semantic code
+
+## What Gets Monitored
+
+Not all SMART attributes are created equal. Some are informational, some are critical. The script focuses on the ones that actually predict failure:
+
+| ID | Attribute | What It Means |
+|---|---|---|
+| 5 | Reallocated Sectors | Bad sectors the drive has already replaced. Any non-zero value is a warning. |
+| 187 | Uncorrectable Errors | Errors the drive couldn't fix. This is bad news. |
+| 197 | Current Pending Sectors | Sectors waiting to be reallocated. Active damage. |
+| 198 | Uncorrectable Sector Count | Permanent data loss in sectors. |
+| 10 | Spin Retry Count | Motor struggling to spin up. Mechanical failure incoming. |
+| 194 | Temperature | Operating temp in Celsius. >55C is degraded, >70C is failing. |
+| 231 | SSD Life / NVMe % Used | How much of the drive's rated lifetime has been consumed. |
+
+There are more (14 total), but these are the heavy hitters.
+
+## The Delta Trick
+
+The real value isn't in the absolute numbers — it's in the *change* between runs. A drive with 3 reallocated sectors that's been stable for months is very different from a drive that gained 3 new reallocated sectors since yesterday.
+
+The script tracks these deltas and has separate thresholds for concerning changes:
+
+```
+CHANGE DETECTED: Reallocated Sectors increased by 2 (3 -> 5)
+```
+
+If an attribute is increasing between runs, the script promotes it to at least "Degraded" status, even if the absolute value hasn't hit the static threshold yet. This catches drives in the early stages of active failure.
+
+## Datto RMM Integration
+
+If you're running this as a Datto RMM component, it writes a summary to a UDF field:
+
+```
+OK | Samsung SSD 980 PRO 1TB | 42C | Life: 3%
+```
+
+Or if something's wrong:
+
+```
+DEGRADED | WDC WD10EZEX | 55C | 1 changed
+```
+
+The UDF number is configurable via a component variable (`UdfNumber`, defaults to 8). Exit codes map cleanly to Datto's monitoring:
+
+- **Exit 0** — OK, all clear
+- **Exit 1** — Degraded, early warning signs
+- **Exit 2** — Failing, critical attributes triggered
+
+Set up a monitor on exit code > 0 and you'll get alerts before drives actually die.
+
+## Running Standalone
+
+Don't use Datto? No problem. The script works fine on its own:
+
+```powershell
+.\DiskHealthCheck.ps1
+```
+
+CSV logs go to `%ProgramData%\DiskHealthCheck` by default, or set a custom path:
+
+```powershell
+$env:CsvLogPath = "D:\Logs\DiskHealth"
+.\DiskHealthCheck.ps1
+```
+
+Schedule it via Task Scheduler to run daily and you've got trending data without any RMM platform.
+
+## NVMe Support
+
+NVMe drives don't report classic SMART attributes — they use a different health information log. The script handles this transparently:
+
+- **Media errors** map to Attribute 187 (Uncorrectable Errors)
+- **Error log entries** map to Attribute 1 (Read Error Rate)
+- **Percentage used** maps to Attribute 231 (SSD Life)
+- **Temperature** maps to Attribute 194
+
+You don't need to configure anything. The script detects whether it's talking to an ATA or NVMe drive and adjusts automatically.
+
+## Get It
+
+The script is MIT licensed and available on GitHub:
+
+**[ompster/disk-health-check](https://github.com/ompster/disk-health-check)**
+
+One script, one commit to your RMM, and you've got proactive disk monitoring across your fleet. No agents, no subscriptions, no dashboards — just a PowerShell script that tells you when a drive is dying.
