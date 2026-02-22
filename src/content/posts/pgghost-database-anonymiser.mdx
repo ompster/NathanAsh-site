@@ -1,0 +1,143 @@
+---
+title: "pgGhost: Automatically Anonymise PII in Any PostgreSQL Database"
+description: "An open-source Python tool that auto-discovers schemas, detects PII columns by name patterns, and replaces real data with realistic fake data — while maintaining referential integrity."
+createdAt: 2026-02-22
+image: "../assets/blog-pgghost.png"
+tags: ["python", "postgresql", "security", "privacy", "open-source"]
+---
+
+You've got a production database. You need to hand it to a developer, a vendor, or use it in a test environment. Problem: it's full of real names, addresses, phone numbers, bank details, and tax IDs.
+
+You could spend hours writing custom UPDATE statements for every table. Or you could let **pgGhost** handle it.
+
+**[pgGhost on GitHub](https://github.com/ompster/PGghost)**
+
+## What It Does
+
+pgGhost connects to any PostgreSQL database, auto-discovers all schemas, scans every column for PII patterns, and replaces the real data with realistic fakes — all while maintaining referential integrity.
+
+No config files. No schema definitions. Just point it at a database and go.
+
+```bash
+pip install psycopg2-binary faker
+python pgghost.py
+```
+
+It'll prompt you for connection details, list your databases, and let you pick one. From there it handles everything.
+
+## The Problem It Solves
+
+Sanitising a database for demo or dev use is tedious. You need to:
+
+1. Figure out which tables contain PII
+2. Figure out which *columns* in those tables are PII
+3. Generate realistic replacement data
+4. Make sure the same customer name in the `orders` table matches the one in `customers`
+5. Not break anything in the process
+
+Most people either skip steps 3 and 4 (hello, `UPDATE customers SET name = 'REDACTED'`) or spend a full day writing bespoke scripts.
+
+## How It Works
+
+### Auto-Discovery
+
+pgGhost doesn't need to know your schema upfront. It queries `information_schema` to discover all schemas and tables, then matches column names against 60+ PII patterns:
+
+| Category | Patterns matched |
+|----------|-----------------|
+| **Names** | `first_name`, `surname`, `company_name`, `contact_name`, `vendor_name`, ... |
+| **Addresses** | `address1`, `street`, `suburb`, `city`, `postcode`, `zip_code`, ... |
+| **Contact** | `phone`, `mobile`, `fax`, `email`, `email_address`, ... |
+| **Banking** | `bank_account`, `bsb`, `sort_code`, `iban`, `swift`, ... |
+| **Identity** | `abn`, `acn`, `ssn`, `tfn`, `passport`, `drivers_licence`, ... |
+| **Auth** | `password`, `api_key`, `token`, `username`, ... |
+
+It's smart enough to skip false positives too — columns like `table_name`, `hostname`, `filename`, and `index_name` won't get touched.
+
+### Referential Integrity
+
+This is the bit most people get wrong. If "Acme Corp" appears in your `customers`, `invoices`, and `orders` tables, it needs to become the *same* fake name everywhere.
+
+pgGhost maintains global caches per data type. The first time it sees "Acme Corp", it generates a fake company name and caches it. Every subsequent occurrence of "Acme Corp" — regardless of which table or schema — gets the same replacement. Foreign key relationships stay intact.
+
+### Realistic Data
+
+All fake data comes from Python's [Faker](https://faker.readthedocs.io/) library using the `en_AU` locale by default. You get realistic Australian addresses, phone numbers, ABNs, and company names — not obviously fake garbage.
+
+The random seed is fixed (`42`), so runs are **reproducible**. Same input, same output, every time.
+
+## Usage
+
+### Dry Run
+
+See what pgGhost would do without changing anything:
+
+```bash
+python pgghost.py --dry-run --verbose
+```
+
+This lists every schema, table, and column it detected as PII, along with row counts.
+
+### Before/After Comparison
+
+The `--sample` flag snapshots a few rows before and after anonymisation so you can verify the results:
+
+```bash
+python pgghost.py --verbose --sample
+```
+
+Output looks like:
+
+```
+--- data.customers ---
+  Row 1:
+    customername                    Acme Industries Pty Ltd              -> Mitchell Group
+    address1                        42 Collins Street                    -> 7 Watson Circuit
+    suburb                          Melbourne                            -> Cairns
+    phone                           03 9555 1234                         -> 08 6345 9821
+    emailaddress                    admin@acme.com.au                    -> sarah.williams@example.net
+```
+
+### Safe Mode — Duplicate First
+
+When prompted, you can duplicate the database before anonymising. pgGhost will `CREATE DATABASE ... WITH TEMPLATE`, then run against the copy:
+
+```
+Duplicate the database before anonymising? (y/N): y
+New database name [mydb_anon]: 
+```
+
+Your original stays completely untouched.
+
+## Column Max Length
+
+pgGhost checks `character_maximum_length` for every column before writing. If a generated fake value is too long, it truncates to fit. No constraint violations.
+
+## Error Handling
+
+Each column update runs inside a `SAVEPOINT`. If a single column fails (type mismatch, constraint issue, whatever), it rolls back that column and continues with the rest. One bad column doesn't kill the whole run. Commits happen per-schema to avoid holding massive transactions.
+
+## When Would You Use This?
+
+- **Demo environments** — show the product without exposing real customer data
+- **Dev/test databases** — give developers realistic data without the liability
+- **Vendor handoffs** — "here's a copy of the database" without the GDPR risk
+- **Training environments** — realistic scenarios with zero privacy concerns
+- **Compliance** — data minimisation requirements, right to be forgotten
+
+## Limitations
+
+- **Pattern-based detection** — it matches column *names*, not column *content*. A column called `notes` full of customer details won't get caught (yet)
+- **PostgreSQL only** — no MySQL/MSSQL support at this stage
+- **English column names** — the patterns assume English naming conventions
+
+## Get It
+
+```bash
+git clone https://github.com/ompster/PGghost.git
+cd PGghost
+pip install psycopg2-binary faker
+python pgghost.py --dry-run --verbose
+```
+
+MIT licensed. PRs welcome.
