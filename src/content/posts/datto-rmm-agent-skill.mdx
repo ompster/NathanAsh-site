@@ -98,7 +98,7 @@ A PowerShell script that checks components for common issues before deployment:
 |------|---------|------------|-------|
 | Applications | 30 min | 0=success, 3010=reboot | Convertible to Scripts |
 | Scripts | Flexible | 0=success, 1=warn, 2=error | Convertible to Applications |
-| Monitors | <3 sec | 0=healthy, non-zero=alert | **Immutable** once created |
+| Monitors | Under 3 sec | 0=healthy, non-zero=alert | **Immutable** once created |
 
 The big gotcha: Monitor category can never be changed after creation. Plan accordingly.
 
