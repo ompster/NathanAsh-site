@@ -1,0 +1,148 @@
+---
+title: "Teaching AI to Write Datto RMM Components"
+description: "An open-source agent skill that gives AI coding assistants deep knowledge of Datto RMM component development -- monitor contracts, PowerShell patterns, and deployment best practices."
+createdAt: 2026-03-01
+image: "../assets/blog-datto-rmm-agent-skill.png"
+tags: ["datto-rmm", "ai", "powershell", "automation", "agent-skill", "openclaw"]
+---
+
+If you've ever asked an AI assistant to write a Datto RMM monitor script, you've probably gotten something that *looks* right but fails silently in production. It uses `Write-Output` instead of `Write-Host`. It's missing the diagnostic markers. The exit codes are wrong. The AI doesn't know what it doesn't know about Datto's quirks.
+
+So I built an **agent skill** that fixes this -- a structured knowledge pack that teaches AI coding assistants how Datto RMM components actually work.
+
+**GitHub:** [ompster/datto-rmm-agent-skill](https://github.com/ompster/datto-rmm-agent-skill)
+
+## What's an Agent Skill?
+
+An agent skill is a set of reference documents, templates, and validation scripts that an AI assistant loads when it detects a relevant task. Think of it as giving your AI a specialised textbook before asking it to do the work.
+
+When you ask your AI to "write a Datto RMM monitor for disk space", the skill kicks in and ensures the output follows the actual Datto contracts -- not the AI's best guess at what they might be.
+
+## The Problem
+
+Datto RMM has some non-obvious requirements that AI assistants consistently get wrong:
+
+**Monitor output contract.** Monitors must emit specific markers that Datto's parser expects:
+
+```
+<-Start Diagnostic->
+Checking disk space on C:\
+Free space: 45.2 GB (23% free)
+Threshold: 10%
+<-End Diagnostic->
+<-Start Result->
+Status=OK: Disk space healthy (23% free)
+<-End Result->
+```
+
+Miss these markers? Your monitor shows "no data" in the Datto dashboard. No errors, no warnings -- just silence.
+
+**Write-Host, not Write-Output.** This catches everyone. In normal PowerShell, `Write-Output` is the standard. In Datto monitors, it goes to the pipeline and gets eaten. `Write-Host` is the only output method that works reliably.
+
+**Exit codes matter differently.** Components use 0/1/2 (success/warning/error). Monitors use 0 for healthy and non-zero for alert. Applications recognise 3010 (reboot required). Get these wrong and your alerting fires backwards.
+
+**The 3-second wall.** Monitors have a hard timeout of under 3 seconds. That `Get-WmiObject Win32_Product` call you're using for software detection? It takes 30+ seconds *and* triggers MSI reconfiguration as a side effect. Don't use it.
+
+## What's in the Skill
+
+### Reference Documents
+
+- **Monitor Contract** -- The exact marker format, output variable rules, helper function patterns, and common mistakes
+- **Component Patterns** -- Download best practices (TLS 1.2, hash validation, BITS for large files), file attachments, environment variables, error handling
+- **Function Reference** -- Full documentation of the [DattoRMM-toolkit](https://github.com/ompster/DattoRMM-toolkit) functions with signatures and examples
+- **PowerShell Pitfalls** -- PS 5.1 gotchas that break scripts in production (ASCII encoding, ForEach-Object scoping, SYSTEM context quirks)
+
+### Templates
+
+Ready-to-use starting points for both components and monitors, with the correct patterns already in place:
+
+```powershell
+# Monitor template includes embedded helpers
+function Write-MonitorAlert {
+    param([string]$Message)
+    Write-Host '<-End Diagnostic->'
+    Write-Host '<-Start Result->'
+    Write-Host "Status=$Message"
+    Write-Host '<-End Result->'
+    exit 1
+}
+
+function Write-MonitorSuccess {
+    param([string]$Message)
+    Write-Host '<-End Diagnostic->'
+    Write-Host '<-Start Result->'
+    Write-Host "Status=$Message"
+    Write-Host '<-End Result->'
+    exit 0
+}
+```
+
+### Validation Script
+
+A PowerShell script that checks components for common issues before deployment:
+
+- Non-ASCII characters (PS 5.1 will mangle these)
+- `Write-Output` usage in monitors (will cause "no data")
+- Missing diagnostic/result markers
+- Missing TLS 1.2 enforcement in download scripts
+- `Win32_Product` usage (slow, side effects)
+- Missing exit codes
+
+```powershell
+.\validate-component.ps1 -Path "my-monitor.ps1" -Type Monitor
+```
+
+## Component Types at a Glance
+
+| Type | Timeout | Exit Codes | Notes |
+|------|---------|------------|-------|
+| Applications | 30 min | 0=success, 3010=reboot | Convertible to Scripts |
+| Scripts | Flexible | 0=success, 1=warn, 2=error | Convertible to Applications |
+| Monitors | <3 sec | 0=healthy, non-zero=alert | **Immutable** once created |
+
+The big gotcha: Monitor category can never be changed after creation. Plan accordingly.
+
+## Key Rules the Skill Enforces
+
+1. **Pure ASCII in .ps1 files.** PowerShell 5.1 mangles non-ASCII characters depending on system code page. No emoji, no em dashes, no curly quotes.
+
+2. **Write-Host only for monitors.** `Write-Output` goes to the pipeline and Datto's monitor parser never sees it.
+
+3. **TLS 1.2 for downloads.** Older Windows systems default to TLS 1.0/1.1 which most CDNs reject. One line fixes it:
+   ```powershell
+   [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
+   ```
+
+4. **Registry-based software detection.** Query the uninstall keys directly (both 32-bit and 64-bit). Never `Win32_Product`.
+
+5. **File attachments by filename.** Datto places attached files in the working directory. Reference by name, not absolute path.
+
+6. **SYSTEM context awareness.** Components run as `NT AUTHORITY\SYSTEM`. User-specific operations need `Invoke-AsLoggedOnUser`.
+
+## Using It
+
+### With an AI Agent (OpenClaw, Codex, Claude Code)
+
+Drop the skill folder into your agent's skills directory. The agent auto-detects it when you ask about Datto RMM components:
+
+```
+"Write a Datto RMM monitor that checks if OneDrive is syncing"
+"Create a component to install Chrome silently"  
+"Review this monitor script for issues"
+```
+
+The agent reads the skill, loads the relevant references, and produces output that follows the actual Datto contracts.
+
+### As a Human Reference
+
+Even without an AI agent, the reference docs are solid documentation for anyone building Datto RMM components. The monitor contract doc alone would have saved me hours of debugging "no data" issues.
+
+## Related
+
+This skill is built on top of the [DattoRMM-toolkit](https://github.com/ompster/DattoRMM-toolkit) -- a PowerShell module with shared functions for logging, exit codes, UDF management, user context operations, and more. The skill teaches AI agents how to use the toolkit effectively.
+
+## Get It
+
+**GitHub:** [ompster/datto-rmm-agent-skill](https://github.com/ompster/datto-rmm-agent-skill)
+
+Clone it, drop it in your agent's skill directory, and stop debugging monitor output contracts manually.
