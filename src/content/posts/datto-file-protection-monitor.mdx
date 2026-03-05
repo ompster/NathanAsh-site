@@ -37,11 +37,21 @@ DFP runs in two modes, each with its own status file:
 - **Server mode:** `C:\ProgramData\Datto\Common\Status Report - Datto File Protection Server.xml`
 - **Desktop mode:** `<UserProfile>\AppData\Local\Datto\Common\Status Report - Datto File Protection.xml`
 
-Since the monitor runs as SYSTEM, it can't just check `$env:USERPROFILE` for desktop mode — it needs to enumerate all profiles under `C:\Users\` to find every instance. The monitor checks all of them.
+Since the monitor runs as SYSTEM, it can't just check `$env:USERPROFILE` for desktop mode. But here's where it gets interesting.
+
+### The Multi-User Problem
+
+DFP is licensed per-user. On a shared machine, when a different user logs in, DFP spins up a new instance under their profile. But since they don't have a license, their instance can't connect to the Datto cloud. It creates a status XML that shows `disconnected` — and if you're checking all profiles, that's a false positive on a perfectly healthy machine.
+
+The original version of this monitor checked every XML it found across all profiles. That was wrong.
+
+**The fix:** the monitor now detects the currently logged-in user (via `Win32_ComputerSystem`) and only evaluates their profile's XML. If nobody is logged in, it falls back to the most recently modified XML — which is almost certainly the licensed user's, since their DFP instance was the last one actively updating.
+
+Server mode XML (ProgramData) is always evaluated regardless, since that's a machine-level instance with its own license.
 
 ### What It Checks
 
-For each status XML found, the monitor evaluates four things:
+For each selected status XML, the monitor evaluates four things:
 
 **1. Connection State**
 
@@ -77,9 +87,11 @@ The monitor follows Datto's diagnostic/result contract:
 Monitor: Datto File Protection
 Time: 2026-03-05 14:30:00 UTC
 Config: MaxHoursSinceBackup=72
-XML candidates to check: 4
-Found XML: C:\ProgramData\Datto\Common\Status Report - Datto File Protection Server.xml
---- Evaluating: C:\ProgramData\Datto\Common\Status Report - ... ---
+Found server XML: C:\ProgramData\Datto\Common\Status Report - Datto File Protection Server.xml
+Logged-in user: DOMAIN\jsmith
+Using logged-in user XML: C:\Users\jsmith\AppData\Local\Datto\Common\Status Report - Datto File Protection.xml
+XMLs to evaluate: 2
+--- Evaluating: C:\Users\jsmith\AppData\Local\... ---
   Agent version      : 3.1.0.456
   Subscription status: active
   Agent online       : connected
@@ -134,3 +146,5 @@ The monitor is part of the DattoRMM-toolkit, alongside reusable functions and te
 👉 **[github.com/ompster/DattoRMM-toolkit](https://github.com/ompster/DattoRMM-toolkit)**
 
 MIT licensed. If you're dealing with DFP alert noise, give it a go.
+
+This monitor was originally developed using the [datto-rmm-agent-skill](https://github.com/ompster/datto-rmm-agent-skill) — an AI agent skill for building production-ready Datto RMM components and monitors with OpenClaw, Codex, and Claude Code.
