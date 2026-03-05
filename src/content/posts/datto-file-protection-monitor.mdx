@@ -1,0 +1,136 @@
+---
+title: "Datto File Protection Monitor: Fixing False Positives and Auto-Resolving Alerts"
+description: "A Datto RMM component monitor that parses the DFP status XML to eliminate false positive alerts from transient connection states, suppress noise during active backups, and auto-resolve when healthy."
+createdAt: 2026-03-05
+image: "../assets/blog-dfp-monitor.png"
+tags: ["powershell", "datto", "rmm", "monitoring", "open-source"]
+---
+
+If you're running Datto File Protection across your fleet and using the ComStore monitor to keep an eye on it, you've probably noticed two things:
+
+1. **False positives everywhere.** Agent briefly reconnects? Alert. Authenticating after a reboot? Alert. Transient network blip? You guessed it — alert.
+2. **Alerts that never clear.** Even after the agent recovers, the alert sits there until someone manually closes it.
+
+I got tired of the noise, so I built a replacement monitor that actually understands what's happening inside DFP. It's part of the [DattoRMM-toolkit](https://github.com/ompster/DattoRMM-toolkit) and you can grab it from the `monitors/` folder.
+
+## The Problem with the ComStore Monitor
+
+The default Datto File Protection monitor checks whether the agent is "online" — but it treats every non-connected state as a failure. The reality is that DFP cycles through several transient states during normal operation:
+
+- **Connecting** — agent is establishing a connection
+- **Authenticating** — verifying credentials with the cloud
+- **Retry** — temporary connection hiccup, trying again
+- **Low-disk-space** — agent is aware but still functional
+
+None of these are actual failures. The only state that indicates a genuine problem is **disconnected** — the agent has given up trying to connect. But the ComStore monitor doesn't make this distinction.
+
+On top of that, if a backup is actively running, the connection is obviously working — yet the monitor can still fire alerts based on stale connection state metadata.
+
+## How the Replacement Works
+
+The monitor parses the official Datto status XML file that the agent writes on every check-in. This is the same file Datto's own dashboard reads — it's the source of truth.
+
+### Finding the XML
+
+DFP runs in two modes, each with its own status file:
+
+- **Server mode:** `C:\ProgramData\Datto\Common\Status Report - Datto File Protection Server.xml`
+- **Desktop mode:** `<UserProfile>\AppData\Local\Datto\Common\Status Report - Datto File Protection.xml`
+
+Since the monitor runs as SYSTEM, it can't just check `$env:USERPROFILE` for desktop mode — it needs to enumerate all profiles under `C:\Users\` to find every instance. The monitor checks all of them.
+
+### What It Checks
+
+For each status XML found, the monitor evaluates four things:
+
+**1. Connection State**
+
+Only alerts on `disconnected`. Transient states like `connecting`, `authenticating`, `retry`, and `low-disk-space` are logged but suppressed. If a backup is actively running, connection alerts are suppressed entirely — the connection is clearly working.
+
+**2. Subscription Status**
+
+Alerts on `quarantined` (ransomware lockdown) or `deleted` (account removed). Intentionally `disabled` accounts are left alone — that's a deliberate admin action, not an incident.
+
+**3. Backup Staleness**
+
+Checks the `backup-last-complete` Unix timestamp against a configurable threshold. Default is 72 hours (3 days). If the last successful backup is older than that and no backup is currently running, it fires an alert. Active backups suppress the staleness check — no point alerting about a stale backup when one is literally running right now.
+
+**4. Fallback: Service Presence**
+
+If no status XML exists at all (agent might be freshly installed), the monitor falls back to checking for a running Datto service. Service found but no XML? Healthy — the agent is initialising. No service and no XML? That's a genuine problem.
+
+### The Key Difference: Exit Codes
+
+This is what makes alerts auto-resolve. The monitor exits with:
+
+- **Exit 0** when everything is healthy — Datto RMM sees this and automatically clears any existing alert
+- **Exit 1** when there's a problem — Datto RMM raises (or maintains) an alert
+
+The ComStore monitor doesn't reliably exit 0 on recovery, which is why alerts stick around. This one does.
+
+## The Output
+
+The monitor follows Datto's diagnostic/result contract:
+
+```
+<-Start Diagnostic->
+Monitor: Datto File Protection
+Time: 2026-03-05 14:30:00 UTC
+Config: MaxHoursSinceBackup=72
+XML candidates to check: 4
+Found XML: C:\ProgramData\Datto\Common\Status Report - Datto File Protection Server.xml
+--- Evaluating: C:\ProgramData\Datto\Common\Status Report - ... ---
+  Agent version      : 3.1.0.456
+  Subscription status: active
+  Agent online       : connected
+  Backup active      : False
+  Last backup        : 2026-03-05 10:15:22 UTC (4.2 h ago)
+Execution time: 12ms
+<-End Diagnostic->
+<-Start Result->
+Status=OK: last backup 4.2h ago, agent:connected, sub:active
+<-End Result->
+```
+
+When something is wrong:
+
+```
+Status=DISCONNECTED: Agent is disconnected from Datto cloud -- C:\ProgramData\...
+```
+
+Or:
+
+```
+Status=STALE BACKUP: Last backup was 96.3 h ago (threshold: 72 h) -- C:\ProgramData\...
+```
+
+Clear, actionable messages. No guessing.
+
+## Configuration
+
+One variable: `MaxHoursSinceBackup` (integer, default: 72). Set it in the Datto RMM component variables when you assign the monitor.
+
+72 hours works well for most environments — it's long enough to ride out a weekend without false alarms, but short enough to catch a genuinely broken backup chain.
+
+## Setup
+
+1. Download `datto-file-protection-monitor.ps1` from the [DattoRMM-toolkit](https://github.com/ompster/DattoRMM-toolkit/tree/main/monitors)
+2. Create a new Component Monitor in Datto RMM
+3. Paste the script content
+4. Set the Output Variable to `Status`
+5. Optionally add a component variable `MaxHoursSinceBackup` if you want something other than 72 hours
+6. Assign to your DFP-protected devices
+
+The monitor targets sub-200ms execution time. It's parsing a local XML file, not making API calls — it's fast.
+
+## Why Not Just Fix the ComStore Monitor?
+
+Because the ComStore monitor is a black box you can't edit, and even if you could, the fundamental approach of checking a single boolean "is connected" state is too simplistic. DFP's status XML contains rich, nuanced information about what the agent is actually doing. Parsing that XML properly is the only way to get reliable monitoring.
+
+## Get It
+
+The monitor is part of the DattoRMM-toolkit, alongside reusable functions and templates for building your own components:
+
+👉 **[github.com/ompster/DattoRMM-toolkit](https://github.com/ompster/DattoRMM-toolkit)**
+
+MIT licensed. If you're dealing with DFP alert noise, give it a go.
