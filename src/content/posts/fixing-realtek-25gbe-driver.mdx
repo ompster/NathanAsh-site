@@ -1,0 +1,213 @@
+---
+title: "Fixing the Realtek Gaming 2.5GbE Driver: A Journey Through Every Wrong Answer"
+description: "A Realtek 2.5GbE NIC driver pushed via Windows Update was dropping PCs off the network. Here's how I fixed it at scale with devcon, and every approach that failed first."
+createdAt: 2026-03-07
+image: "../assets/blog-realtek-driver-fix.png"
+tags: ["powershell", "drivers", "datto", "rmm", "networking", "automation"]
+---
+
+Sometimes a driver update breaks one PC. Sometimes it breaks dozens across multiple sites. This is the story of the Realtek Gaming 2.5GbE driver that Windows Update decided to push — and the surprisingly painful journey to roll it back at scale.
+
+## The Problem
+
+PCs at several sites started intermittently dropping off the network. Not all at once, and not consistently — which made it harder to diagnose. The common thread? They all had the same MSI motherboard with a **Realtek Gaming 2.5GbE** NIC, and Windows Update had recently pushed a newer Realtek driver: **v1125.25.50.2025**.
+
+The stable driver — the one that had been working perfectly — was the Windows inbox driver: **v1.0.0.14**, shipped by Microsoft under `rtcx21x64.inf`.
+
+The fix seemed obvious: roll back the driver. The execution was anything but.
+
+## You're Not Alone — The RTL8125 Has a Reputation
+
+After solving this, I discovered this is a **well-documented problem** across the RTL8125 family that Realtek has apparently ignored for years. The root cause? **ASPM (Active State Power Management)**.
+
+The Realtek driver mishandles **L1/L1.2 PCIe link state transitions**. When the OS requests the NIC to enter a low-power state, the device either fails to transition or fails to wake up within the tolerance window of the PCIe Root Port. This triggers hardware errors (WHEA-Logger Event 17 on some systems), packet loss, and intermittent disconnects — especially with UDP traffic.
+
+One [Reddit user](https://www.reddit.com/r/hardware/comments/1jp560a/rtl8125_sudden_link_updown_packet_loss_finally/) spent two years battling this and even reported it to Realtek directly — zero response. Another [detailed bug report](https://www.reddit.com/r/razer/comments/1r10mfn/critical_bug_report_razer_blade_2023_realtek/) on Razer Blade 2023 systems documented the exact WHEA errors and PCIe state transition failures.
+
+This explains why only *some* of our sites were affected despite identical hardware — it depends on the switch, network load, and how aggressively the OS triggers power state changes on that particular NIC. The newer Realtek driver (v1125.25.50.2025) likely changed the power management behaviour compared to the stable inbox driver.
+
+## What Didn't Work
+
+### Attempt 1: Driver Store Manipulation (v1.0)
+
+My first approach was surgical: remove the bad driver from the store and reinstall the good one.
+
+```powershell
+# Stage the good driver
+pnputil /add-driver rtcx21x64.inf /install /force
+
+# Remove the bad one
+pnputil /delete-driver oem14.inf /force
+```
+
+**Problem:** `pnputil /add-driver /install /force` does NOT downgrade. If Windows considers the currently installed driver to be "newer," it stages the INF into the store but says the device is already up-to-date. The `/force` flag doesn't mean what you think it means — it forces the *staging*, not the *installation*.
+
+And `pnputil /delete-driver /force` can't remove a driver that's actively in use by a device. It just errors out.
+
+Worse, aggressively manipulating the driver store without a clear rollback path bricked a test machine's network completely. It needed a hands-on reboot at the site. Not a great start.
+
+### Attempt 2: devcon rollback (v2.0)
+
+The Windows Driver Kit's `devcon.exe` has a `rollback` command. Perfect, right?
+
+```powershell
+devcon rollback "PCI\VEN_10EC&DEV_8125"
+```
+
+**Problem:** The version of devcon from the modern WDK doesn't support the `rollback` verb. It just doesn't exist. The documentation references it, older blog posts mention it, but try running it and you get nothing. Dead end.
+
+### Attempt 3: MSI Manufacturer Driver (v3.0)
+
+Maybe the answer was to go to MSI's website and grab their official Realtek driver? Downloaded it, checked the version: **v10.079.50.1003** under `rt640x64.inf`.
+
+**Problem:** One of the affected machines already had this exact driver installed and was *still dropping off the network*. The MSI-provided driver wasn't the fix. The only stable version was the Microsoft inbox driver.
+
+### The Hardware ID Trap
+
+Even once I found the right tool, there was another trap waiting. When you query a device's instance ID, you get something like:
+
+```
+@PCI\VEN_10EC&DEV_8125&SUBSYS_7D991462&REV_05\01000000684CE00000
+```
+
+Feed that to `devcon update` and it silently fails or errors. The `@` prefix denotes an *instance path*, not a *hardware ID*. And the full string with subsystem and revision info is too specific.
+
+What devcon actually wants is the **short hardware ID**:
+
+```
+PCI\VEN_10EC&DEV_8125
+```
+
+No `@`. No subsystem. No revision. Just vendor and device. This distinction isn't well documented and cost me a solid chunk of debugging time.
+
+## What Actually Worked (v4.0)
+
+The winning approach: **`devcon update`** with the bundled inbox driver files.
+
+### Step 1: Export the Good Driver
+
+From a working machine that still had the inbox driver:
+
+```powershell
+# Create export directory
+New-Item -Path C:\DriverBackup -ItemType Directory -Force
+
+# Export the working driver files
+pnputil /export-driver rtcx21x64.inf C:\DriverBackup
+```
+
+This gives you three files: `rtcx21x64.inf`, `rtcx21x64.sys`, and `rtcx21x64.cat`. The INF and SYS are what you need.
+
+### Step 2: Force Install with devcon
+
+`devcon update` is the key. Unlike `pnputil`, it doesn't care about version comparison — it forces the specified INF onto the device regardless of what's currently installed.
+
+```powershell
+devcon update rtcx21x64.inf "PCI\VEN_10EC&DEV_8125"
+```
+
+That's it. The driver swaps immediately, the adapter briefly resets, and within a few seconds you're back on the network with the stable v1.0.0.14 driver.
+
+### Step 3: Block It From Coming Back
+
+Here's the part most guides skip. You fix the driver, walk away, and two weeks later Windows Update helpfully reinstalls the broken one. To prevent that, use **Device Installation Restrictions** via Group Policy registry keys:
+
+```powershell
+$restrictionsPath = 'HKLM:\SOFTWARE\Policies\Microsoft\Windows\DeviceInstall\Restrictions'
+$denyPath = "$restrictionsPath\DenyDeviceIDs"
+
+# Create the policy keys
+New-Item -Path $restrictionsPath -Force | Out-Null
+New-Item -Path $denyPath -Force | Out-Null
+
+# Enable the deny policy
+Set-ItemProperty -Path $restrictionsPath -Name 'DenyDeviceIDs' -Value 1 -Type DWord -Force
+Set-ItemProperty -Path $restrictionsPath -Name 'DenyDeviceIDsRetroactive' -Value 1 -Type DWord -Force
+
+# Block the specific hardware ID
+Set-ItemProperty -Path $denyPath -Name '1' -Value 'PCI\VEN_10EC&DEV_8125' -Type String -Force
+```
+
+The `DenyDeviceIDsRetroactive` flag is important — it tells Windows to enforce the block even for drivers already in the store, not just future downloads.
+
+## Packaging It for RMM
+
+Since this needed to hit dozens of machines across multiple sites, I packaged it as a Datto RMM component with:
+
+- **devcon.exe** bundled as an attachment (can't rely on it being on the target)
+- **rtcx21x64.inf** and **rtcx21x64.sys** bundled alongside
+- **DryRun mode** — runs the detection and reports what it *would* do without making changes, so you can scope the blast radius first
+- **Automatic verification** — checks the driver version after the swap and confirms the adapter comes back up
+- **Idempotency** — if the machine is already on v1.0.0.14, it skips and exits clean
+
+I also built a separate **prevention component** for the SOE onboarding sequence. New deployments get the Device Installation Restriction policy applied before Windows Update ever gets a chance to push the bad driver. Prevention over cure.
+
+## The Nuclear Option: Disable NIC Power Saving Entirely
+
+If you'd rather address the root cause (ASPM) instead of — or in addition to — rolling back the driver, you can disable all the power-saving features on the Realtek NIC via PowerShell. This is what the community has found actually fixes the disconnects regardless of driver version:
+
+```powershell
+# Find the Realtek 2.5GbE adapter
+$adapter = Get-NetAdapter | Where-Object {
+    $_.InterfaceDescription -like '*Realtek*2.5GbE*'
+}
+
+if ($adapter) {
+    $name = $adapter.Name
+
+    # Disable all energy-saving features
+    $powerSettings = @(
+        "Energy-Efficient Ethernet"
+        "Advanced EEE"
+        "Green Ethernet"
+        "Gigabit Lite"
+        "Power Saving Mode"
+    )
+
+    foreach ($setting in $powerSettings) {
+        try {
+            Set-NetAdapterAdvancedProperty -Name $name `
+                -DisplayName $setting -DisplayValue "Disabled" `
+                -ErrorAction Stop
+            Write-Output "Disabled: $setting"
+        } catch {
+            # Property may not exist on all Realtek variants
+        }
+    }
+
+    # Disable "Allow the computer to turn off this device to save power"
+    $pnp = Get-PnpDevice | Where-Object { $_.InstanceId -eq $adapter.PnPDeviceID }
+    if ($pnp) {
+        $power = Get-CimInstance -ClassName MSPower_DeviceEnable `
+            -Namespace root\wmi -ErrorAction SilentlyContinue |
+            Where-Object { $_.InstanceName -match [regex]::Escape($adapter.PnPDeviceID) }
+        if ($power) {
+            $power.Enable = $false
+            $power | Set-CimInstance
+            Write-Output "Disabled: Allow computer to turn off device"
+        }
+    }
+}
+
+# Disable PCIe ASPM system-wide (optional, affects all PCIe devices)
+powercfg /setacvalueindex SCHEME_CURRENT SUB_PCIEXPRESS ASPM 0
+powercfg /setactive SCHEME_CURRENT
+```
+
+Not every Realtek 2.5GbE variant exposes all of these properties — the script silently skips any that don't exist. This approach is especially useful as a **preventative measure** in your SOE or RMM tooling: deploy it to all machines with the RTL8125 and you may never hit the disconnect issue in the first place, regardless of which driver version Windows Update pushes.
+
+## Lessons Learned
+
+**`pnputil` won't downgrade drivers.** Even with `/force`. It's designed for staging and cleanup, not rollback. If you need to force a specific driver version onto a device, `devcon update` is the tool.
+
+**`devcon` needs the short hardware ID.** Not the instance path (with `@`), not the full string with subsystem and revision. Just `VEN_xxxx&DEV_xxxx`. This is the single most important thing I learned and it's barely documented anywhere.
+
+**Always block the driver after fixing it.** Device Installation Restrictions via the registry (or Group Policy) is the only reliable way to stop Windows Update from "helpfully" reinstalling the exact driver you just removed.
+
+**Test with DryRun first.** When you're pushing driver changes to production machines remotely, you want to know exactly which machines are affected before you start swapping drivers. A DryRun parameter that reports without changing is cheap insurance.
+
+**The inbox driver isn't always worse.** There's a common assumption that manufacturer drivers are always better than what ships with Windows. In this case, the Microsoft inbox driver (v1.0.0.14) was rock solid, and the Realtek-provided update was the problem. Don't dismiss the inbox driver as a valid fix.
+
+## The Script
+
+The full component script is on [GitHub](https://github.com/ompster/DattoRMM-toolkit) if you want to adapt it for your own environment. You'll need to export the inbox driver files from a working machine and bundle them with devcon.exe from the Windows Driver Kit.
