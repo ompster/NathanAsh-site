@@ -210,4 +210,4 @@ Not every Realtek 2.5GbE variant exposes all of these properties — the script 
 
 ## The Script
 
-The full component script is on [GitHub](https://github.com/ompster/DattoRMM-toolkit) if you want to adapt it for your own environment. You'll need to export the inbox driver files from a working machine and bundle them with devcon.exe from the Windows Driver Kit.
+You'll need to export the inbox driver files from a working machine and bundle them with `devcon.exe` from the Windows Driver Kit. From there, wrap it in whatever deployment tool you use — RMM component, GPO startup script, SCCM package — the core logic is the same.
