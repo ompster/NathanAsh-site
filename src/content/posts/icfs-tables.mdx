@@ -1,0 +1,105 @@
+---
+title: "ICFS Tables: A Browser Extension Born from Frustration (and Nystagmus)"
+description: "I built a Chrome/Edge extension that adds alternating row colours to HTML tables because I literally can't see them without it. Here's why and how."
+createdAt: 2026-03-19
+image: "../assets/icfs-tables.png"
+tags: ["accessibility", "chrome-extension", "browser", "open-source", "javascript"]
+---
+
+I have congenital nystagmus — involuntary eye movements that make it genuinely difficult to track across dense rows of data. Most of the time it's manageable. But then you open something like Autotask, with its endless tables of tickets, timesheets, and purchase orders, all rendered in the same shade of white, and suddenly you're squinting at your screen trying to figure out which row you're on.
+
+I got sick of it. So I built **ICFS - Tables**.
+
+## What It Does
+
+It's stupidly simple: alternating row colours on any HTML table in your browser. Zebra stripes. The thing that every spreadsheet app does by default but web developers apparently forgot exists.
+
+- **Alternating row colours** — odd rows white, even rows light blue (or whatever colours you want)
+- **Hover highlighting** — mouse over a row and it lights up so you don't lose your place
+- **Per-site settings** — different colours and on/off state for each website
+- **Right-click context menu** — toggle stripes on individual tables
+- **Three striping methods** — because the web is a mess
+
+## Why Three Methods?
+
+This is where it gets fun. I originally wrote the extension with a simple CSS rule:
+
+```css
+table tr:nth-child(even) {
+  background-color: rgba(0, 0, 0, 0.04) !important;
+}
+```
+
+Clean, lightweight, done. Except it didn't work on the one site I built it for.
+
+Autotask uses ASP classic pages loaded inside frames. The tables don't use `<tbody>`. The cells have inline background colours. The CSS `!important` wasn't enough because the specificity wars were already lost.
+
+So I switched to **JS injection** — the content script walks every `<tr>`, skips header rows, and applies inline styles directly to each row and cell. Nuclear option, but it works on everything.
+
+The extension now ships three methods:
+
+| Method | How it works | Best for |
+|--------|-------------|----------|
+| **JS injection** | Walks DOM, applies inline styles | Legacy apps, frames, inline styles |
+| **CSS only** | nth-child selectors via stylesheet | Modern, well-behaved sites |
+| **Auto** | Tries CSS first, falls back to JS | Set and forget |
+
+JS injection is the default because if you're installing an extension to make tables readable, you probably need the one that actually works everywhere.
+
+## The Frames Problem
+
+The first version didn't work at all in Autotask. I could see tables on normal sites, but the Autotask ones were invisible to the extension. Turns out the actual content lives inside `<frame>` elements, and Chrome extensions don't inject into frames unless you explicitly tell them to:
+
+```json
+{
+  "content_scripts": [{
+    "matches": ["<all_urls>"],
+    "all_frames": true
+  }]
+}
+```
+
+One line in the manifest. Hours of confusion.
+
+## Custom Colours
+
+Not everyone wants blue stripes. The popup lets you pick colours for odd rows, even rows, and hover highlight — or choose from presets:
+
+- **Blue** (default) — easy on the eyes
+- **Green** — spreadsheet vibes
+- **Grey** — subtle
+- **Purple** — why not
+- **High Contrast** — for when you really need it
+
+Colours are saved per-site, so you can have blue for Autotask and grey for everything else.
+
+## Right-Click Targeting
+
+Sometimes you don't want every table on the page striped — navigation menus, layout tables, whatever. Right-click on a specific table and toggle it individually. The extension marks which tables you've targeted with a subtle outline.
+
+## Who Is This For?
+
+I built it for myself, but it's useful for anyone who struggles with dense tables:
+
+- **Nystagmus** — involuntary eye movements make row tracking difficult
+- **Low vision** — more contrast between rows helps
+- **Dyslexia** — visual differentiation reduces line-skipping
+- **Tired eyes** — end of a long day staring at data
+- **Anyone using legacy enterprise apps** — you know the ones
+
+It's also just... better? Every table should have alternating row colours. It's been standard practice in print for decades. The web just forgot.
+
+## Try It
+
+The extension isn't in the Chrome Web Store yet (coming soon), but you can install it now from source:
+
+1. Clone the repo: [github.com/ompster/ICFS-tables](https://github.com/ompster/ICFS-tables)
+2. Go to `chrome://extensions` or `edge://extensions`
+3. Enable Developer mode
+4. Load unpacked → select the folder
+
+Works in Chrome, Edge, Brave, and anything else Chromium-based.
+
+---
+
+*ICFS stands for "I Can't F\*\*\*ing See." Because sometimes that's exactly how it feels.*
