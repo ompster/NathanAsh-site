@@ -1,0 +1,91 @@
+---
+title: "ChannelSurf: A YouTube Playlist Shuffler with Retro TV Transitions"
+description: "A single-file web app that randomly surfs through YouTube playlists, playing short clips with TV static, glitch effects, and other retro transitions. Zero dependencies, works anywhere."
+createdAt: 2026-03-21
+image: "../assets/blog-channelsurf.png"
+tags: ["javascript", "youtube", "web-app", "open-source", "side-project"]
+---
+
+I wanted background ambience on my TV — something that would randomly play snippets from a YouTube playlist without me having to touch it. YouTube's built-in shuffle plays full videos sequentially, and there's no "play 45 seconds from a random point then skip" option.
+
+So I built **ChannelSurf**.
+
+## What It Does
+
+ChannelSurf takes any YouTube playlist and turns it into a channel-surfing experience:
+
+- **Random shuffle** — picks videos randomly from the playlist, avoiding recent repeats
+- **Random seek** — jumps to a random point in each video, not just the beginning
+- **Configurable clip length** — play anywhere from 10 seconds to 5 minutes per clip
+- **Retro transitions** — TV static, glitch effects, fade to black, or a "NO SIGNAL" blue screen between clips
+- **Auto-hide UI** — controls disappear during playback so you get a clean fullscreen experience
+
+The whole thing is a single HTML file. No build step, no dependencies, no npm install. Just serve it and go.
+
+## The Transitions
+
+This is the fun part. Instead of just cutting between videos, ChannelSurf has four transition effects:
+
+**📺 TV Static** — Full-screen white noise rendered on a canvas element. Each frame generates random pixel data, giving you that authentic CRT static look.
+
+**⚡ Glitch** — Random coloured bars and artifacts scattered across the screen, like a dodgy HDMI connection.
+
+**🔵 No Signal** — Classic blue screen with "NO SIGNAL" text. If you grew up with CRT TVs, you know this one.
+
+**⬛ Fade to Black** — The subtle option for when you want something cleaner.
+
+Or pick **🎲 Random** and get a different transition each time.
+
+## How It Works
+
+Under the hood, it's pretty straightforward:
+
+1. The YouTube IFrame API loads the playlist and extracts all video IDs
+2. A shuffle algorithm picks random videos while tracking recently played ones to avoid repeats
+3. For each video, it loads it via the API, waits for the `PLAYING` state, then seeks to a random point
+4. A timer runs for the configured clip length, then triggers the transition overlay and loads the next video
+5. Settings are persisted in `localStorage` so you don't have to reconfigure every time
+
+The transition overlays are just absolutely-positioned divs that sit above the player. The static effect uses a canvas with `createImageData()` to generate random greyscale pixels at ~60fps. Simple but effective.
+
+## Usage
+
+```bash
+# Host it however you want
+python -m http.server 8888
+
+# Or use GitHub Pages, Nginx, whatever
+```
+
+Open it in a browser, paste a YouTube playlist ID, hit Start, and cast the tab to a Chromecast. Done.
+
+### Getting a Playlist ID
+
+From a URL like:
+```
+https://youtube.com/playlist?list=PLCgY5X6keprecXzwA9jsi92DhiNZ-_KoY
+```
+
+The ID is everything after `list=`: `PLCgY5X6keprecXzwA9jsi92DhiNZ-_KoY`
+
+## Self-Hosting
+
+I'm running it on an Nginx container on my Unraid server, accessible over the local network. But since it's just a static HTML file, GitHub Pages works perfectly too.
+
+The live version is at [ompster.github.io/ChannelSurf](https://ompster.github.io/ChannelSurf/).
+
+## Why Not Just Use YouTube Shuffle?
+
+YouTube's shuffle:
+- Plays full videos (no clip length control)
+- Always starts from the beginning
+- No transition effects
+- Can't cast a shuffled playlist reliably from mobile
+
+ChannelSurf gives you the "flipping through channels" experience that YouTube doesn't. It's ambient TV, not a playlist player.
+
+## Source
+
+It's open source and it's one file: [github.com/ompster/ChannelSurf](https://github.com/ompster/ChannelSurf)
+
+MIT licensed. Fork it, tweak it, make it yours.
