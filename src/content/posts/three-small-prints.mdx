@@ -1,0 +1,135 @@
+---
+title: "Three Small Prints — 3D Printing for TPN Families"
+description: "A personal project designing and 3D printing practical aids for families managing children with short gut syndrome on TPN therapy."
+createdAt: 2026-07-10
+image: "../assets/placeholder.png"
+tags: ["3d-printing", "openscad", "personal", "healthcare"]
+---
+
+Some projects aren't about automation, infrastructure, or clever scripts. Some are just about helping people you care about.
+
+**Three Small Prints** is one of those. It's a collection of 3D-printed aids designed for families managing children with short gut syndrome on Total Parenteral Nutrition (TPN) therapy.
+
+## The Context
+
+Short gut syndrome means the intestine can't absorb enough nutrients from food. For some kids, that means life depends on TPN — intravenous nutrition delivered through a central line, usually overnight.
+
+Families become clinicians. They spike bags, program pumps, manage tubing, and handle connections with sterile technique. Every night. For years.
+
+The equipment is medical-grade, but it's not always *designed* for home use. Small quality-of-life improvements matter when you're doing something this demanding, this often.
+
+## The Prints
+
+Three designs, each solving a specific friction point:
+
+### 1. S-Hook for IV Pole Management
+
+TPN setups involve a lot of hanging bags and tubing. The S-hook provides a simple way to organize lines, keep connections off the floor, and route tubing cleanly around the bed or pole.
+
+**Design considerations:**
+- Smooth edges (no snagging on tubing)
+- Fits standard IV pole diameters
+- Easy to clean
+
+### 2. Weighted Stand for Practice Ampules
+
+Families practice spiking and priming with saline ampules before handling real TPN bags. The weighted stand holds the ampule at a realistic height and angle, making practice sessions feel like the real thing.
+
+**Design considerations:**
+- Stable base (won't tip during practice)
+- Correct height for typical IV pole setup
+- Compartment for used ampules
+
+### 3. Practice Ampule Set
+
+Reusable practice ampules that mimic the feel and connection points of real TPN bags. Lets families build muscle memory without wasting supplies.
+
+**Design considerations:**
+- Accurate connection geometry
+- Durable (hundreds of practice cycles)
+- Clear visual feedback on connection state
+
+## The Tech
+
+I designed these in **OpenSCAD** — the programmer's 3D CAD tool. It's code-driven, parametric, and version-controlled. If you need to adjust a dimension, you change a variable and re-render. No clicking through menus.
+
+```openscad
+// Example: S-hook curvature
+hook_radius = 25;  // mm
+hook_thickness = 4;
+hook_width = 12;
+
+rotate_extrude(angle = 180)
+    translate([hook_radius, 0, 0])
+        circle(r = hook_thickness);
+```
+
+The STL files are on GitHub, along with the OpenSCAD source. If you need to tweak something for your specific setup, you can.
+
+## The Website
+
+I built a simple site for the project: **[careprints.online](https://careprints.online)**
+
+It's intentionally minimal:
+- What the project is
+- What each print does
+- A request form for families who want the prints
+
+The form originally used `mailto:` — simple, no backend, just opens your email client. But that's not great accessibility. Some people don't have a desktop email client configured. Some are on phones. Some just want to click submit and be done.
+
+So I replaced it with a proper PHP handler:
+
+```php
+<?php
+// submit.php - validates POST, processes checkboxes, sends email
+if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+    http_response_code(405);
+    exit('Method not allowed');
+}
+
+// Validate required fields
+$name = trim($_POST['name'] ?? '');
+$email = filter_var($_POST['email'] ?? '', FILTER_VALIDATE_EMAIL);
+$items = $_POST['items'] ?? [];  // Checkbox array
+
+if (!$name || !$email || empty($items)) {
+    http_response_code(400);
+    exit('Missing required fields');
+}
+
+// Send email to nathan.ash@voonix.com.au
+// Redirect to success page
+?>
+```
+
+The backend runs on my cPanel hosting (voonix.com.au). Nothing fancy — just standard PHP mail handling with proper validation and a success redirect so people know it worked.
+
+## Why Open Source?
+
+The designs are on GitHub under an open license. Here's why:
+
+1. **Iterate faster** — If someone improves the design, everyone benefits
+2. **Local printing** — Families with access to a 3D printer (or a local library/makerspace) can print on demand
+3. **No vendor lock-in** — If I can't keep up with demand, others can help
+
+The goal isn't to build a business. It's to make sure families who need these can get them.
+
+## The Name
+
+"Three Small Prints" is literal — three designs, all small enough to print in a few hours on any consumer printer. But it's also about the idea that small things, printed in plastic, can make a real difference in someone's daily life.
+
+## Get Them
+
+If you're a TPN family and want the prints:
+
+1. **Request via the site** — [careprints.online](https://careprints.online)
+2. **Print them yourself** — STL files on GitHub
+3. **Modify as needed** — OpenSCAD source is included
+
+No cost. No strings. Just practical aids for a tough situation.
+
+---
+
+**Links:**
+- 🖨️ [Three Small Prints on GitHub](https://github.com/ompster/three-small-prints)
+- 🌐 [careprints.online](https://careprints.online)
