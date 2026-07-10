@@ -1,0 +1,61 @@
+<svg width="1200" height="630" xmlns="http://www.w3.org/2000/svg">
+  <!-- Background -->
+  <rect width="1200" height="630" fill="#0d0d0d"/>
+  
+  <!-- Subtle grid pattern -->
+  <defs>
+    <pattern id="grid" width="40" height="40" patternUnits="userSpaceOnUse">
+      <path d="M 40 0 L 0 0 0 40" fill="none" stroke="#1a1a1a" stroke-width="1"/>
+    </pattern>
+    <linearGradient id="glow" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#00ff88;stop-opacity:0.3" />
+      <stop offset="100%" style="stop-color:#00ccff;stop-opacity:0.3" />
+    </linearGradient>
+  </defs>
+  <rect width="1200" height="630" fill="url(#grid)"/>
+  
+  <!-- Title text -->
+  <text x="600" y="180" font-family="'Segoe UI', 'Inter', sans-serif" font-size="56" font-weight="700" fill="#ffffff" text-anchor="middle" letter-spacing="-1">
+    Three Small Prints
+  </text>
+  
+  <!-- Subtitle -->
+  <text x="600" y="230" font-family="'Segoe UI', 'Inter', sans-serif" font-size="24" fill="#888888" text-anchor="middle">
+    3D Printed Aids for TPN Families
+  </text>
+  
+  <!-- Three print icons area -->
+  <g transform="translate(600, 400)">
+    <!-- S-Hook (left) -->
+    <g transform="translate(-180, 0)">
+      <path d="M -20,-40 Q -40,-40 -40,-20 Q -40,0 -20,0 Q 0,0 0,-20 Q 0,-40 -20,-40" 
+            fill="none" stroke="#00ff88" stroke-width="8" stroke-linecap="round"/>
+      <path d="M -20,0 Q 0,0 0,20 Q 0,40 -20,40" 
+            fill="none" stroke="#00ff88" stroke-width="8" stroke-linecap="round"/>
+      <text x="0" y="70" font-family="'Segoe UI', sans-serif" font-size="16" fill="#00ff88" text-anchor="middle">S-Hook</text>
+    </g>
+    
+    <!-- Weighted Stand (center) -->
+    <g transform="translate(0, 0)">
+      <rect x="-30" y="30" width="60" height="10" fill="#00ccff" rx="2"/>
+      <rect x="-20" y="-30" width="40" height="60" fill="none" stroke="#00ccff" stroke-width="6" rx="4"/>
+      <circle cx="0" cy="-30" r="8" fill="#00ccff" opacity="0.6"/>
+      <text x="0" y="70" font-family="'Segoe UI', sans-serif" font-size="16" fill="#00ccff" text-anchor="middle">Stand</text>
+    </g>
+    
+    <!-- Practice Ampule (right) -->
+    <g transform="translate(180, 0)">
+      <rect x="-25" y="-35" width="50" height="70" fill="none" stroke="#ff8800" stroke-width="6" rx="8"/>
+      <line x1="-25" y1="-10" x2="25" y2="-10" stroke="#ff8800" stroke-width="6"/>
+      <circle cx="0" cy="25" r="12" fill="#ff8800" opacity="0.4"/>
+      <text x="0" y="70" font-family="'Segoe UI', sans-serif" font-size="16" fill="#ff8800" text-anchor="middle">Ampule</text>
+    </g>
+  </g>
+  
+  <!-- Decorative glow elements -->
+  <circle cx="200" cy="100" r="150" fill="url(#glow)" opacity="0.2"/>
+  <circle cx="1000" cy="530" r="200" fill="url(#glow)" opacity="0.15"/>
+  
+  <!-- Footer accent -->
+  <rect x="0" y="620" width="1200" height="10" fill="url(#glow)"/>
+</svg>
