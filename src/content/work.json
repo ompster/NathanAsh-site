@@ -1,23 +1,30 @@
 [
 	{
 		"id": 1,
-		"duration": "2021 - Present",
-		"company": "Megabus Software (LEO Software Group)",
-		"title": "Technical Services Manager",
-		"description": "Leading the DIDS team — deployment, infrastructure, and endpoint management across Australia and internationally. Built complete SOE from scratch, automated Windows 11 upgrades, and manage server migrations."
+		"duration": "July 2026 - Present",
+		"company": "The Grid",
+		"title": "Automation Lead",
+		"description": "Leading automation and the service desk team - standardising the SOE, building PowerShell tooling, and driving repeatable, documented processes across the MSP."
 	},
 	{
 		"id": 2,
+		"duration": "August 2021 - July 2026",
+		"company": "Megabus Software (LEO Software Group)",
+		"title": "Technical Services Manager",
+		"description": "Led the DIDS team - deployment, infrastructure, and endpoint management across Australia and internationally. Built complete SOE from scratch, automated Windows 11 upgrades, and managed server migrations."
+	},
+	{
+		"id": 3,
 		"duration": "2006 - 2021",
 		"company": "Voonix ITS",
 		"title": "Systems Engineer (Sole Trader)",
 		"description": "Independent IT consultancy providing break-fix support, infrastructure design, and managed services to SMBs. Expert-level Linux server administration and web hosting."
 	},
 	{
-		"id": 3,
+		"id": 4,
 		"duration": "2012 - 2013",
 		"company": "Network Neighborhood",
 		"title": "Junior Network Administrator",
-		"description": "Supported 1,000+ users across multiple school campuses. Hands-on with Cisco infrastructure — WLAN controllers, ASAs, IDS/IPS, firewalls, switches."
+		"description": "Supported 1,000+ users across multiple school campuses. Hands-on with Cisco infrastructure - WLAN controllers, ASAs, IDS/IPS, firewalls, switches."
 	}
 ]
