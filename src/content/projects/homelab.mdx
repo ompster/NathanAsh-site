@@ -1,10 +1,10 @@
 ---
 title: "Homelab"
-description: "Self-hosted infrastructure on Unraid with 15TB storage, Docker containers, network-wide ad-blocking, and Cloudflare tunnels."
-date: 2024-01-01
+description: "Self-hosted infrastructure: a Docker stack on Proxmox (docker-01), an Unraid NAS, network-wide ad-blocking, and Cloudflare-gated external access."
+date: 2026-09-27
 image: "../assets/homelab-hero.png"
 info:
-  - text: "Unraid"
+  - text: "Proxmox"
     icon:
       type: "lucide"
       name: "server"
@@ -12,52 +12,53 @@ info:
     icon:
       type: "lucide"
       name: "container"
-  - text: "Ubiquiti"
+  - text: "Cloudflare"
     icon:
       type: "lucide"
-      name: "wifi"
+      name: "cloud"
 ---
 
-My homelab runs on a **192.168.1.0/24** network with Ubiquiti gear and an Unraid NAS at the core.
+My homelab is split across a few boxes: a **Proxmox** host for compute, an **Unraid** box ("DROID") as the NAS, and Ubiquiti gear for networking.
 
-## Hardware
+## Architecture
 
-**Unraid Server (MSI)** — The heart of the operation
-- 4x 3.7TB drives in array (~15TB total, ~12TB used)
-- 477GB NVMe cache drive
-- Running 15+ Docker containers
+- **Proxmox** hosts **docker-01**, a VM that runs the entire Docker stack.
+- **Unraid (DROID)** is the storage tier for media, ebooks, and ROM libraries.
+- **Ubiquiti** EdgeRouter, AP, and UniFi Controller handle routing, WiFi, and DHCP.
 
-**Networking**
-- Ubiquiti EdgeRouter as gateway
-- Ubiquiti AP for WiFi
-- UniFi Controller managing DHCP
+The Docker stack is defined in the **[AshnetHome](https://github.com/ompster/AshnetHome)** repo. A push to `main` triggers a self-hosted GitHub Actions runner on docker-01, which pulls `/opt/stacks` in place and redeploys only the stack directories that changed. Runtime secrets (`.env` files, Authelia secrets) live on the host and are gitignored, so they never touch the repo.
+
+## Backup
+
+docker-01 is backed up daily via Proxmox **vzdump**, with a notification fired once the backup completes. That covers the container configs, `/opt/appdata`, and the runtime secrets kept out of git.
 
 ## Services
 
-**Media Stack**
-- **Plex** — Media server
-- **Radarr / Sonarr** — Movie and TV automation
-- **Jackett** — Indexer aggregation
-- **qBittorrent / NZBGet** — Downloads
-- **Ombi** — Request management
+**Edge and auth**
+- **Traefik** - reverse proxy, wildcard certificate via Cloudflare DNS challenge
+- **Authelia** - SSO and forward-auth for most services
+- **cloudflared** - external access tunnel
+- **AdGuard Home** - network-wide DNS and ad-blocking
+- **Homepage** - dashboard
 
-**Infrastructure**
-- **AdGuard Home + Unbound + Redis** — Network-wide DNS and ad-blocking (192.168.1.53)
-- **UniFi Controller** — Network management (192.168.1.50)
-- **WireGuard-Easy** — VPN access
-- **Cloudflare Tunnel** — Secure external access without port forwarding
+**Ops**
+- **Uptime Kuma** - uptime monitoring, with a public `live.ashnet.online` status page
+- **Dozzle** - container logs
+- **Diun** - image-update notifications
 
-**Self-Hosted Apps**
-- **Gitea** — Git server (repo.ashnet.online)
-- **Linkding** — Bookmark manager (links.ashnet.online)
-- **BabyBuddy** — Baby tracking for the twins (baby.ashnet.online)
-- **IT-Tools** — Developer utilities (tools.ashnet.online)
+**Media**
+- **qBittorrent** and **NZBget** - downloads
+- **Prowlarr** - indexer manager
 
-**Smart Home**
-- **Home Assistant** — Running on a Raspberry Pi
-- Various Espressif/Tuya devices, Google Home speakers, smart TVs
-- Samsung Family Hub (smart fridge)
+**Books and docs**
+- **Chaptarr** - ebook automation (Readarr's successor)
+- **Kavita** - ebook and comic reader
+- **Paperless-ngx** - document archive and OCR
 
-## External Access
+**Everything else**
+- **RomM** - ROM library manager
+- **Super Productivity** - tasks, with a WebDAV sync backend
 
-Everything publicly accessible goes through **Cloudflare Tunnel** on the **ashnet.online** domain — no ports exposed to the internet.
+## External access
+
+Traefik terminates TLS and routes subdomains on **ashnet.online**, with certificates issued via a Cloudflare DNS challenge. Most services sit behind Authelia. A few (Kavita, RomM, the WebDAV sync backend) use their own login instead, because Authelia's forward-auth cookie handshake breaks cross-client apps.
