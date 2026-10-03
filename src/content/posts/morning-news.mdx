@@ -1,0 +1,74 @@
+---
+title: "Morning News: Replacing Google Assistant's News Queue"
+description: "A free Cloudflare Workers web app that plays the latest bulletin from each Australian news source back to back, with learned ad trimming, played tracking, and lock-screen controls."
+createdAt: 2026-10-03
+image: "../assets/blog-morning-news.svg"
+tags: ["javascript", "cloudflare", "web-app", "open-source", "side-project"]
+---
+
+Google Assistant used to answer "play the news" with a queue of short radio bulletins, one source after the next. That feature is gone now. I missed it enough to rebuild it.
+
+**Morning News** is a small web app that pulls the newest bulletin from each Australian news source you choose and plays them back to back with one tap. It runs free on Cloudflare Workers, has no database, no account system, and no tracking.
+
+## What it does
+
+- **One tap Play all.** Plays the newest bulletin from every enabled source in order. Untick a source to leave it out, or tap a row to start from that one.
+- **Skip past ads.** Seek bar, back 15 seconds, forward 30 seconds, and a Skip intro button. All of them also work from the lock screen and notification controls.
+- **Learned ad trimming per source.** Skip the ads yourself once and the app remembers where you landed. Next time it jumps there automatically, with an Undo. Pressing Next near the end teaches it to leave early on that source.
+- **Measured ad time.** For Omny sources, the player shows how much ad time was inserted into the bulletin you are hearing.
+- **Played tracking.** Play all skips bulletins you have already heard, so the button shows something like "3 new of 6".
+
+Played history, ad trim values, and source choices live in your browser's localStorage. Nothing is sent anywhere.
+
+## Why ads are the hard part
+
+The commercial sources (via Omny and Triton) stitch ads into the MP3 on each request. The lengths change from play to play, and there is no ad-free URL. You can't remove them exactly, so the app does the next best thing: you skip past them once, it remembers the landing point, and it jumps there automatically from then on.
+
+The values are capped so they can never cut into the news itself, and you can edit them in Settings if the guess drifts.
+
+## The sources
+
+| Source | Feed | Notes |
+|---|---|---|
+| NOVA News | Omny Studio | Ads inserted per play |
+| Fox FM Melbourne News | Omny Studio | Ads inserted per play |
+| ABC News Briefing | ABC podcast RSS | Blocks browsers, fetched by the Worker |
+| News24 | Omny Studio | Ads inserted per play |
+| SBS News | SBS RSS | Bulletins only |
+| Nine News Bulletin | Omny Studio | Melbourne bulletin |
+
+The feed list lives in one file, `public/feeds.js`, in a `SOURCES` array. The order there is the play order, and each source carries a title rule so only the real bulletin is picked instead of a random story.
+
+```js
+{id:"nova", name:"NOVA News", type:"omny", org:"<org id>", prog:"<program id>"},
+{id:"sbs",  name:"SBS News",  type:"rss",  url:"https://...", match:/Bulletin/i},
+```
+
+## How it works
+
+One Worker serves the whole app. `/api/news` fetches all the feeds and returns combined JSON, cached for two minutes at the edge. Every other path is served as a static asset. Audio streams straight from each publisher's CDN, so the Worker never proxies or stores audio.
+
+The player itself is a single audio element with the Media Session API, which is what keeps it playing with the screen locked and exposes the skip controls on the lock screen. Being installable as a PWA also helps Android keep it alive in the background.
+
+If the Worker goes down, the page falls back to fetching the feeds that allow direct browser access, which is every source except ABC.
+
+## Deploy your own
+
+It's a one-click deploy. Free Cloudflare account, click **Deploy to Cloudflare** from the README, and you get a `https://morning-news.<subdomain>.workers.dev` URL. Every push to your copy deploys automatically.
+
+```bash
+git clone https://github.com/ompster/Morning-news.git
+cd Morning-news
+npm install
+npx wrangler login
+npm run deploy
+```
+
+Put it on your phone with Add to Home Screen, and it behaves like a native app. Background playback on iOS is less forgiving than Android, but it works.
+
+## Source
+
+Open source and MIT licensed. The live version is at [mews.ashnet.online](https://mews.ashnet.online/).
+
+- 🔗 [github.com/ompster/Morning-news](https://github.com/ompster/Morning-news)
+- 🌐 [mews.ashnet.online](https://mews.ashnet.online/)
